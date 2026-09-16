@@ -1,0 +1,177 @@
+[
+  {
+    "task": "bowl",
+    "text": "put salads in it",
+    "expected_raw_score": 1.0771679735257573,
+    "expected_ui_score": 26.929199338143935,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "get into small holes",
+    "expected_raw_score": 1.159573908724191,
+    "expected_ui_score": 28.989347718104774,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "using it to make a toy boat",
+    "expected_raw_score": 1.6495305764554755,
+    "expected_ui_score": 41.238264411386886,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "shelter small animals",
+    "expected_raw_score": 1.3301986088668727,
+    "expected_ui_score": 33.25496522167182,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "as a pillow",
+    "expected_raw_score": 1.6122649825182829,
+    "expected_ui_score": 40.30662456295707,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "to contain stuff",
+    "expected_raw_score": 1.0754065490154558,
+    "expected_ui_score": 26.885163725386395,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "forming circle shape",
+    "expected_raw_score": 1.2160302407459984,
+    "expected_ui_score": 30.40075601864996,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "sustain something",
+    "expected_raw_score": 1.1994848217161227,
+    "expected_ui_score": 29.987120542903067,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "contain soup",
+    "expected_raw_score": 1.0016566185570854,
+    "expected_ui_score": 25.041415463927137,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "hold things together",
+    "expected_raw_score": 0.957038616785251,
+    "expected_ui_score": 23.925965419631275,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "axis for toy cars",
+    "expected_raw_score": 1.6039839381059795,
+    "expected_ui_score": 40.09959845264949,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "for machine parts",
+    "expected_raw_score": 1.4099419492169547,
+    "expected_ui_score": 35.24854873042387,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "expose",
+    "expected_raw_score": 1.1903420817889439,
+    "expected_ui_score": 29.758552044723597,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "use it as a basket for basketball",
+    "expected_raw_score": 1.455865368982011,
+    "expected_ui_score": 36.396634224550276,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "sugar coffee etc",
+    "expected_raw_score": 0.9616759039558604,
+    "expected_ui_score": 24.04189759889651,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "use as a tool to open small items",
+    "expected_raw_score": 1.2704421778314656,
+    "expected_ui_score": 31.76105444578664,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "creating a template shape to draw round (e.g. curves where you can establish length from measuring straightened clip)",
+    "expected_raw_score": 1.3516925555420343,
+    "expected_ui_score": 33.79231388855086,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "using as a cutting template for paper",
+    "expected_raw_score": 1.3582128917451413,
+    "expected_ui_score": 33.955322293628534,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "press the reset button on electronics",
+    "expected_raw_score": 1.3947948589897794,
+    "expected_ui_score": 34.869871474744485,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "fastening for other material e.g. cloth",
+    "expected_raw_score": 0.9564138820978111,
+    "expected_ui_score": 23.910347052445278,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "bowl",
+    "text": "interior design",
+    "expected_raw_score": 1.0735453973387432,
+    "expected_ui_score": 26.83863493346858,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "piercing ears",
+    "expected_raw_score": 1.2129815394325814,
+    "expected_ui_score": 30.324538485814536,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "to punch the paper if needed",
+    "expected_raw_score": 1.4629202101534005,
+    "expected_ui_score": 36.573005253835014,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "pants",
+    "expected_raw_score": 1.1431396568517695,
+    "expected_ui_score": 28.57849142129424,
+    "tolerance": 1e-06
+  },
+  {
+    "task": "paperclip",
+    "text": "buy",
+    "expected_raw_score": 1.019351643549418,
+    "expected_ui_score": 25.48379108873545,
+    "tolerance": 1e-06
+  }
+]
