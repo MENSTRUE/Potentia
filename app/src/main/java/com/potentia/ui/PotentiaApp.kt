@@ -2,10 +2,13 @@ package com.potentia.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Paint
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,34 +22,45 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.potentia.ai.CreativeScorer
+import com.potentia.assessment.*
 import com.potentia.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.roundToInt
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private enum class Screen {
     SPLASH,
     ONBOARDING_1, ONBOARDING_2, ONBOARDING_3,
-    HOME, ASSESSMENT_INTRO,
+    HOME, ASSESSMENT_INTRO, ASSESSMENT_SESSION,
     Q_SITUATIONAL, Q_LOGIC, Q_PATTERN, Q_SPATIAL, Q_CREATIVE, Q_REFLECTION,
     PROCESSING, RESULT_OVERVIEW, POTENTIAL_DETAIL, POTENTIAL_MAP,
     GROWTH, HISTORY, COMPARISON, DIMENSION_LIBRARY,
@@ -60,19 +74,66 @@ private data class PotentialScore(
     val value: Int
 )
 
-private val DemoScores = listOf(
-    PotentialScore("Penalaran Logis", 82),
-    PotentialScore("Kreatif", 71),
-    PotentialScore("Verbal", 65),
-    PotentialScore("Spasial", 78),
-    PotentialScore("Sosial", 58),
-    PotentialScore("Praktis", 74),
+private val DimensionOrder = listOf(
+    "logical", "creative", "verbal", "spatial", "social", "practical"
 )
+
+private val DimensionLabels = mapOf(
+    "logical" to "Penalaran Logis",
+    "creative" to "Kreatif",
+    "verbal" to "Verbal",
+    "spatial" to "Spasial",
+    "social" to "Sosial",
+    "practical" to "Praktis"
+)
+
+private data class DimensionInfo(
+    val description: String,
+    val tips: List<String>
+)
+
+private val DimensionInfos = mapOf(
+    "logical" to DimensionInfo(
+        "Kecenderungan mengenali pola, aturan, hubungan, dan menyusun langkah penyelesaian secara sistematis.",
+        listOf("Latihan deduksi informal dan teka-teki logika.", "Tulis alur argumen sebelum mengambil kesimpulan.", "Coba permainan strategi yang membutuhkan beberapa langkah ke depan.")
+    ),
+    "creative" to DimensionInfo(
+        "Kecenderungan menghasilkan alternatif, menghubungkan ide, dan melihat kemungkinan baru.",
+        listOf("Cari tiga penggunaan alternatif untuk benda sehari-hari.", "Biasakan membuat lebih dari satu solusi sebelum memilih.", "Gabungkan dua ide yang tidak biasa dalam satu latihan kecil.")
+    ),
+    "verbal" to DimensionInfo(
+        "Kecenderungan memahami hubungan makna, inferensi bahasa, dan menyampaikan gagasan secara terstruktur.",
+        listOf("Ringkas bacaan menjadi tiga kalimat inti.", "Latih sinonim, antonim, dan analogi kata.", "Jelaskan satu konsep rumit dengan bahasa sederhana.")
+    ),
+    "spatial" to DimensionInfo(
+        "Kecenderungan memahami rotasi, orientasi, bentuk, dan hubungan visual dalam ruang.",
+        listOf("Latih rotasi mental dengan bentuk sederhana.", "Coba puzzle visual atau tangram.", "Gambar ulang objek dari sudut pandang berbeda.")
+    ),
+    "social" to DimensionInfo(
+        "Kecenderungan beradaptasi dalam interaksi, bekerja sama, dan membaca kebutuhan orang lain.",
+        listOf("Latihan mendengar aktif sebelum memberi respons.", "Mulai percakapan singkat dengan orang baru.", "Catat satu perspektif orang lain yang berbeda dari milikmu.")
+    ),
+    "practical" to DimensionInfo(
+        "Kecenderungan membuat keputusan yang dapat dijalankan dengan mempertimbangkan waktu, risiko, dan sumber daya.",
+        listOf("Prioritaskan tugas berdasarkan dampak dan batas waktu.", "Buat rencana cadangan untuk satu keputusan penting.", "Evaluasi hasil keputusan berdasarkan data nyata, bukan asumsi.")
+    )
+)
+
+private fun AssessmentResult.toPotentialScores(): List<PotentialScore> =
+    DimensionOrder.map { id ->
+        PotentialScore(
+            label = DimensionLabels[id] ?: id,
+            value = dimensions[id]?.score?.roundToInt()?.coerceIn(0, 100) ?: 0
+        )
+    }
+
+private fun formatAssessmentDate(timestamp: Long): String =
+    SimpleDateFormat("MMMM yyyy", Locale("id", "ID")).format(Date(timestamp))
 
 private val DarkScreens = setOf(Screen.SPLASH, Screen.PROCESSING)
 private val NoBottomBarScreens = setOf(
     Screen.SPLASH, Screen.ONBOARDING_1, Screen.ONBOARDING_2, Screen.ONBOARDING_3,
-    Screen.Q_SITUATIONAL, Screen.Q_LOGIC, Screen.Q_PATTERN,
+    Screen.ASSESSMENT_SESSION, Screen.Q_SITUATIONAL, Screen.Q_LOGIC, Screen.Q_PATTERN,
     Screen.Q_SPATIAL, Screen.Q_CREATIVE, Screen.Q_REFLECTION, Screen.PROCESSING
 )
 
@@ -83,16 +144,37 @@ fun PotentiaApp() {
         context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE)
     }
 
+    val assessmentBankResult = remember {
+        runCatching { AssessmentRepository.load(context) }
+    }
+    val assessmentBank = assessmentBankResult.getOrNull()
+
+    var history by remember {
+        mutableStateOf(AssessmentStorage.loadHistory(prefs))
+    }
+    var assessmentComplete by remember {
+        mutableStateOf(history.isNotEmpty())
+    }
+    var selectedResultTimestamp by remember {
+        mutableStateOf(history.lastOrNull()?.completedAt)
+    }
+    var selectedDimensionId by remember { mutableStateOf("logical") }
+
     var screen by remember { mutableStateOf(Screen.SPLASH) }
     var activeTab by remember { mutableStateOf(MainTab.HOME) }
     var selectedAnswer by remember { mutableStateOf<Int?>(null) }
     var reflectionScore by remember { mutableStateOf<Int?>(null) }
-    var assessmentComplete by remember {
-        mutableStateOf(prefs.getBoolean("assessment_complete", false))
-    }
+    var currentQuestionIndex by rememberSaveable { mutableIntStateOf(0) }
+    val assessmentResponses = remember { mutableStateMapOf<String, String>() }
+    var pendingResponses by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var processingError by remember { mutableStateOf<String?>(null) }
+
     val onboardingComplete = remember {
         prefs.getBoolean("onboarding_complete", false)
     }
+
+    val selectedResult = history.firstOrNull { it.completedAt == selectedResultTimestamp }
+        ?: history.lastOrNull()
 
     val isDark = screen in DarkScreens
     val view = LocalView.current
@@ -117,13 +199,40 @@ fun PotentiaApp() {
                 delay(1500)
                 screen = if (onboardingComplete) Screen.HOME else Screen.ONBOARDING_1
             }
+
             Screen.PROCESSING -> {
-                delay(2200)
-                assessmentComplete = true
-                prefs.edit().putBoolean("assessment_complete", true).apply()
-                screen = Screen.RESULT_OVERVIEW
-                activeTab = MainTab.ASSESSMENT
+                val bank = assessmentBank
+                if (bank == null) {
+                    processingError = assessmentBankResult.exceptionOrNull()?.message
+                        ?: "Item bank tidak dapat dimuat."
+                    screen = Screen.ASSESSMENT_INTRO
+                    return@LaunchedEffect
+                }
+
+                try {
+                    val result = withContext(Dispatchers.Default) {
+                        val creativeScorer = CreativeScorer.fromAssets(context)
+                        AssessmentScoringEngine(creativeScorer).score(
+                            bank = bank,
+                            responses = pendingResponses
+                        )
+                    }
+
+                    AssessmentStorage.append(prefs, result)
+                    history = AssessmentStorage.loadHistory(prefs)
+                    assessmentComplete = history.isNotEmpty()
+                    selectedResultTimestamp = result.completedAt
+                    prefs.edit().putBoolean("assessment_complete", true).apply()
+                    processingError = null
+                    delay(450)
+                    screen = Screen.RESULT_OVERVIEW
+                    activeTab = MainTab.ASSESSMENT
+                } catch (error: Throwable) {
+                    processingError = error.message ?: error::class.java.simpleName
+                    screen = Screen.ASSESSMENT_SESSION
+                }
             }
+
             else -> Unit
         }
     }
@@ -134,7 +243,7 @@ fun PotentiaApp() {
         screen = target
         activeTab = when (target) {
             Screen.HOME, Screen.DIMENSION_LIBRARY -> MainTab.HOME
-            Screen.ASSESSMENT_INTRO, Screen.RESULT_OVERVIEW,
+            Screen.ASSESSMENT_INTRO, Screen.ASSESSMENT_SESSION, Screen.RESULT_OVERVIEW,
             Screen.POTENTIAL_DETAIL, Screen.POTENTIAL_MAP -> MainTab.ASSESSMENT
             Screen.GROWTH -> MainTab.GROWTH
             Screen.HISTORY, Screen.COMPARISON, Screen.PROFILE,
@@ -146,6 +255,24 @@ fun PotentiaApp() {
     fun completeOnboarding() {
         prefs.edit().putBoolean("onboarding_complete", true).apply()
         navigate(Screen.HOME)
+    }
+
+    fun startAssessment() {
+        currentQuestionIndex = 0
+        assessmentResponses.clear()
+        pendingResponses = emptyMap()
+        processingError = null
+        navigate(Screen.ASSESSMENT_SESSION)
+    }
+
+    fun openResult(timestamp: Long) {
+        selectedResultTimestamp = timestamp
+        navigate(Screen.RESULT_OVERVIEW)
+    }
+
+    fun openDimension(dimensionId: String) {
+        selectedDimensionId = dimensionId
+        navigate(Screen.POTENTIAL_DETAIL)
     }
 
     Surface(
@@ -189,16 +316,61 @@ fun PotentiaApp() {
                     )
                     Screen.HOME -> HomeScreen(
                         assessmentComplete = assessmentComplete,
+                        assessmentCount = history.size,
+                        latestResult = history.lastOrNull(),
                         onStartAssessment = { navigate(Screen.ASSESSMENT_INTRO) },
-                        onResult = { navigate(Screen.RESULT_OVERVIEW) },
-                        onPotentialMap = { navigate(Screen.POTENTIAL_MAP) },
+                        onResult = {
+                            history.lastOrNull()?.let { openResult(it.completedAt) }
+                        },
+                        onPotentialMap = {
+                            selectedResultTimestamp = history.lastOrNull()?.completedAt
+                            navigate(Screen.POTENTIAL_MAP)
+                        },
                         onLibrary = { navigate(Screen.DIMENSION_LIBRARY) },
                         onHistory = { navigate(Screen.HISTORY) }
                     )
                     Screen.ASSESSMENT_INTRO -> AssessmentIntroScreen(
                         onBack = { navigate(Screen.HOME) },
-                        onStart = { navigate(Screen.Q_SITUATIONAL) }
+                        onStart = { startAssessment() }
                     )
+                    Screen.ASSESSMENT_SESSION -> {
+                        val bank = assessmentBank
+                        if (bank == null) {
+                            AssessmentLoadErrorScreen(
+                                message = assessmentBankResult.exceptionOrNull()?.message
+                                    ?: "Item bank tidak dapat dimuat.",
+                                onBack = { navigate(Screen.ASSESSMENT_INTRO) }
+                            )
+                        } else {
+                            val items = bank.items
+                            val safeIndex = currentQuestionIndex.coerceIn(0, items.lastIndex)
+                            val item = items[safeIndex]
+
+                            AssessmentSessionScreen(
+                                bank = bank,
+                                item = item,
+                                questionIndex = safeIndex,
+                                response = assessmentResponses[item.itemId].orEmpty(),
+                                errorMessage = processingError,
+                                onResponse = { value ->
+                                    assessmentResponses[item.itemId] = value
+                                    processingError = null
+                                },
+                                onBack = {
+                                    if (safeIndex > 0) currentQuestionIndex = safeIndex - 1
+                                    else navigate(Screen.ASSESSMENT_INTRO)
+                                },
+                                onNext = {
+                                    if (safeIndex < items.lastIndex) {
+                                        currentQuestionIndex = safeIndex + 1
+                                    } else {
+                                        pendingResponses = assessmentResponses.toMap()
+                                        screen = Screen.PROCESSING
+                                    }
+                                }
+                            )
+                        }
+                    }
                     Screen.Q_SITUATIONAL -> SituationalQuestionScreen(
                         selectedAnswer,
                         { selectedAnswer = it },
@@ -237,33 +409,41 @@ fun PotentiaApp() {
                     )
                     Screen.PROCESSING -> ProcessingScreen()
                     Screen.RESULT_OVERVIEW -> ResultOverviewScreen(
+                        result = selectedResult,
                         onMap = { navigate(Screen.POTENTIAL_MAP) },
-                        onDetail = { navigate(Screen.POTENTIAL_DETAIL) }
+                        onDetail = { dimensionId -> openDimension(dimensionId) }
                     )
                     Screen.POTENTIAL_DETAIL -> PotentialDetailScreen(
+                        result = selectedResult,
+                        dimensionId = selectedDimensionId,
                         onBack = { navigate(Screen.RESULT_OVERVIEW) }
                     )
                     Screen.POTENTIAL_MAP -> PotentialMapScreen(
+                        result = selectedResult,
                         onBack = { navigate(Screen.RESULT_OVERVIEW) },
-                        onDetail = { navigate(Screen.POTENTIAL_DETAIL) }
+                        onDetail = { dimensionId -> openDimension(dimensionId) }
                     )
-                    Screen.GROWTH -> GrowthScreen()
+                    Screen.GROWTH -> GrowthScreen(
+                        result = history.lastOrNull()
+                    )
                     Screen.HISTORY -> HistoryScreen(
-                        assessmentComplete = assessmentComplete,
+                        history = history,
                         onBack = { navigate(Screen.PROFILE) },
                         onStartAssessment = { navigate(Screen.ASSESSMENT_INTRO) },
-                        onResult = { navigate(Screen.RESULT_OVERVIEW) },
+                        onResult = { timestamp -> openResult(timestamp) },
                         onCompare = { navigate(Screen.COMPARISON) }
                     )
                     Screen.COMPARISON -> ComparisonScreen(
+                        history = history,
                         onBack = { navigate(Screen.HISTORY) }
                     )
                     Screen.DIMENSION_LIBRARY -> DimensionLibraryScreen(
                         onBack = { navigate(Screen.HOME) },
-                        onDetail = { navigate(Screen.POTENTIAL_DETAIL) }
+                        onDetail = { dimensionId -> openDimension(dimensionId) }
                     )
                     Screen.PROFILE -> ProfileScreen(
                         assessmentComplete = assessmentComplete,
+                        assessmentCount = history.size,
                         onHistory = { navigate(Screen.HISTORY) },
                         onComparison = { navigate(Screen.COMPARISON) },
                         onResult = { navigate(Screen.RESULT_OVERVIEW) },
@@ -271,11 +451,14 @@ fun PotentiaApp() {
                         onAbout = { navigate(Screen.ABOUT) }
                     )
                     Screen.SETTINGS -> SettingsScreen(
+                        history = history,
                         onBack = { navigate(Screen.PROFILE) },
                         onAbout = { navigate(Screen.ABOUT) },
                         onDeleteHistory = {
-                            prefs.edit().remove("assessment_complete").apply()
+                            AssessmentStorage.clear(prefs)
+                            history = emptyList()
                             assessmentComplete = false
+                            selectedResultTimestamp = null
                         }
                     )
                     Screen.ABOUT -> AboutScreen(
@@ -752,12 +935,24 @@ private fun GrowthIllustration() {
 @Composable
 private fun HomeScreen(
     assessmentComplete: Boolean,
+    assessmentCount: Int,
+    latestResult: AssessmentResult?,
     onStartAssessment: () -> Unit,
     onResult: () -> Unit,
     onPotentialMap: () -> Unit,
     onLibrary: () -> Unit,
     onHistory: () -> Unit
 ) {
+    val latestScores = latestResult?.toPotentialScores().orEmpty()
+    val topLabels = latestResult?.let { result ->
+        DimensionOrder.mapNotNull { id ->
+            result.dimensions[id]?.score?.let { id to it }
+        }
+            .sortedByDescending { it.second }
+            .take(2)
+            .joinToString(" & ") { (id, _) -> DimensionLabels[id] ?: id }
+    }.orEmpty()
+
     Column(
         Modifier
             .fillMaxSize()
@@ -800,7 +995,7 @@ private fun HomeScreen(
                 Heading("Temukan pola potensimu", 21)
                 Spacer(Modifier.height(5.dp))
                 Text(
-                    "10–15 menit · 6 dimensi · tidak ada jawaban salah",
+                    "±45–55 menit · 47 item pilot · 6 dimensi",
                     color = Muted,
                     fontSize = 13.sp,
                     lineHeight = 19.sp
@@ -825,11 +1020,19 @@ private fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Agustus 2026", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            latestResult?.let { formatAssessmentDate(it.completedAt) } ?: "Profil terakhir",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                         Spacer(Modifier.height(2.dp))
-                        Text("Kecenderungan kuat: Logika & Spasial", color = Muted, fontSize = 12.sp)
+                        Text(
+                            if (topLabels.isNotBlank()) "Skor tertinggi: $topLabels" else "Hasil pilot tersedia",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
                         Spacer(Modifier.height(10.dp))
-                        DemoScores.take(3).forEach { score ->
+                        latestScores.take(3).forEach { score ->
                             Row(
                                 Modifier.padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -891,7 +1094,7 @@ private fun HomeScreen(
         FlatExploreRow("Dimensi Potensi", "Kenali lebih dalam", onLibrary)
         FlatExploreRow(
             "Riwayat Asesmen",
-            if (assessmentComplete) "1 asesmen tersimpan" else "Belum ada asesmen",
+            if (assessmentComplete) "$assessmentCount asesmen tersimpan" else "Belum ada asesmen",
             onHistory,
             showDivider = false
         )
@@ -930,17 +1133,14 @@ private fun AssessmentIntroScreen(
     onStart: () -> Unit
 ) {
     val sections = listOf(
-        Triple("01", "Situasi & Preferensi", "4 mnt"),
-        Triple("02", "Pola & Logika", "3 mnt"),
-        Triple("03", "Visual & Spasial", "4 mnt"),
-        Triple("04", "Refleksi", "3 mnt")
+        listOf("01", "Penalaran Logis", "10 item · ±9 mnt", "Mengenali pola, aturan, relasi, dan kesimpulan logis."),
+        listOf("02", "Kreatif", "3 item · ±8 mnt", "Menghasilkan beberapa ide alternatif melalui jawaban bebas."),
+        listOf("03", "Verbal", "8 item · ±8 mnt", "Memahami hubungan makna dan inferensi berbasis bahasa."),
+        listOf("04", "Spasial", "8 item · ±9 mnt", "Memahami rotasi dan hubungan visual-spasial."),
+        listOf("05", "Sosial", "10 item · ±10 mnt", "Merespons pernyataan dan situasi kerja sama/interpersonal."),
+        listOf("06", "Praktis", "8 item · ±10 mnt", "Mengambil keputusan nyata dengan risiko, waktu, dan sumber daya.")
     )
-    val desc = listOf(
-        "Pilihan berdasarkan situasi sehari-hari",
-        "Tantangan angka dan urutan sederhana",
-        "Mengenali pola dan rotasi bentuk",
-        "Pertanyaan mengenali diri sendiri"
-    )
+
     Column(
         Modifier
             .fillMaxSize()
@@ -949,18 +1149,18 @@ private fun AssessmentIntroScreen(
     ) {
         TopBack(onBack)
         Spacer(Modifier.height(12.dp))
-        Overline("Asesmen Potensi")
+        Overline("Asesmen Potensi · Pilot")
         Heading("Siap menjelajahi\npotensimu?", 28)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Asesmen ini terdiri dari empat bagian, sekitar 10–15 menit. Tidak ada jawaban sempurna.",
+            "47 item dalam 6 bagian, estimasi sekitar 45–55 menit. Jawabanmu disimpan selama sesi dan diproses menjadi enam indeks pilot.",
             color = Muted,
             lineHeight = 22.sp,
             fontSize = 14.sp
         )
         Spacer(Modifier.height(24.dp))
 
-        sections.forEachIndexed { i, s ->
+        sections.forEachIndexed { index, section ->
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -974,16 +1174,16 @@ private fun AssessmentIntroScreen(
                         .background(Gold.copy(alpha = .12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(s.first, color = Gold, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+                    Text(section[0], color = Gold, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(s.second, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(desc[i], color = Muted, fontSize = 12.sp)
+                    Text(section[1], fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(section[3], color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 }
-                Text(s.third, color = Muted.copy(alpha = .7f), fontSize = 11.sp)
+                Text(section[2], color = Muted.copy(alpha = .7f), fontSize = 10.sp)
             }
-            if (i != sections.lastIndex) HorizontalDivider(color = Stone.copy(alpha = .55f))
+            if (index != sections.lastIndex) HorizontalDivider(color = Stone.copy(alpha = .55f))
         }
 
         Spacer(Modifier.height(20.dp))
@@ -992,7 +1192,7 @@ private fun AssessmentIntroScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Gunakan hasil sebagai refleksi diri, bukan diagnosis psikologis atau penilaian kemampuan absolut.",
+                "Status: pilot/research. Hasil bukan diagnosis, bukan IQ, bukan percentile/norma populasi. Skor Kreatif memakai AI eksperimental yang belum divalidasi untuk respons Bahasa Indonesia.",
                 modifier = Modifier.padding(15.dp),
                 color = Muted,
                 fontSize = 12.sp,
@@ -1000,8 +1200,189 @@ private fun AssessmentIntroScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        PrimaryButton("Mulai Asesmen", onClick = onStart)
+        PrimaryButton("Mulai 47 Item", onClick = onStart)
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AssessmentLoadErrorScreen(
+    message: String,
+    onBack: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(22.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        PotentiaRings(Modifier.size(72.dp), color = Gold.copy(alpha = .55f))
+        Spacer(Modifier.height(18.dp))
+        Heading("Item bank belum dapat dimuat", 20)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            message,
+            color = Muted,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(22.dp))
+        GhostButton("Kembali", onClick = onBack)
+    }
+}
+
+@Composable
+private fun SpatialAssetImage(asset: String) {
+    val context = LocalContext.current
+    val bitmap = remember(asset) {
+        runCatching {
+            context.assets.open("potentia_assessment/$asset").use { input ->
+                BitmapFactory.decodeStream(input)?.asImageBitmap()
+            }
+        }.getOrNull()
+    }
+
+    if (bitmap != null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Stone),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = "Soal spasial",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 190.dp, max = 300.dp)
+                    .padding(12.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun AssessmentSessionScreen(
+    bank: AssessmentBank,
+    item: AssessmentItem,
+    questionIndex: Int,
+    response: String,
+    errorMessage: String?,
+    onResponse: (String) -> Unit,
+    onBack: () -> Unit,
+    onNext: () -> Unit
+) {
+    val section = bank.sectionFor(item.dimensionId)
+    val isLast = questionIndex == bank.items.lastIndex
+
+    QuestionFrame(
+        progress = questionIndex + 1,
+        section = section?.title ?: (DimensionLabels[item.dimensionId] ?: item.dimensionId),
+        trailing = "${questionIndex + 1}/${bank.totalItems}",
+        question = item.prompt,
+        onBack = onBack,
+        total = bank.totalItems
+    ) {
+        if (!section?.instruction.isNullOrBlank()) {
+            Text(
+                section?.instruction.orEmpty(),
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+
+        if (item.responseType == "single_choice_image" && item.asset != null) {
+            SpatialAssetImage(item.asset)
+        }
+
+        when (item.responseType) {
+            "single_choice", "single_choice_image", "sjt_single_choice", "likert_1_5" -> {
+                item.choices.forEachIndexed { index, choice ->
+                    AnswerRow(
+                        index = index,
+                        text = choice.label,
+                        selected = response == choice.value,
+                        onClick = { onResponse(choice.value) }
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+            }
+
+            "free_text", "free_text_list" -> {
+                val helper = if (item.responseType == "free_text_list") {
+                    "Tulis satu ide per baris. Maksimal ${item.maxResponses ?: 3} ide."
+                } else {
+                    "Tuliskan jawabanmu secara singkat tetapi cukup jelas."
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .08f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Skor Kreatif saat ini memakai model AI eksperimental dan belum merupakan norma/diagnosis psikologis.",
+                        modifier = Modifier.padding(12.dp),
+                        color = Muted,
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = response,
+                    onValueChange = onResponse,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = if (item.responseType == "free_text_list") 6 else 5,
+                    maxLines = 10,
+                    placeholder = { Text("Tulis jawaban di sini…") },
+                    supportingText = { Text(helper) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        focusedLabelColor = Gold,
+                        cursorColor = Gold
+                    )
+                )
+            }
+
+            else -> {
+                Text(
+                    "Tipe respons '${item.responseType}' belum didukung.",
+                    color = Color(0xFFB5451B),
+                    fontSize = 13.sp
+                )
+            }
+        }
+
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE9E2)),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    "Proses skor sebelumnya gagal: $errorMessage",
+                    modifier = Modifier.padding(12.dp),
+                    color = Color(0xFF8A2F16),
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        PrimaryButton(
+            label = if (isLast) "Selesai & Proses Hasil" else "Lanjut",
+            enabled = response.isNotBlank(),
+            onClick = onNext
+        )
     }
 }
 
@@ -1012,6 +1393,7 @@ private fun QuestionFrame(
     trailing: String,
     question: String,
     onBack: () -> Unit,
+    total: Int = 6,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
@@ -1021,7 +1403,7 @@ private fun QuestionFrame(
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         TopBack(onBack, trailing)
-        ProgressLine(progress, 6)
+        ProgressLine(progress, total)
         Spacer(Modifier.height(20.dp))
         Overline(section)
         Spacer(Modifier.height(5.dp))
@@ -1434,28 +1816,50 @@ private fun ProcessingScreen() {
 
 @Composable
 private fun ResultOverviewScreen(
+    result: AssessmentResult?,
     onMap: () -> Unit,
-    onDetail: () -> Unit
+    onDetail: (String) -> Unit
 ) {
+    if (result == null) {
+        Column(
+            Modifier.fillMaxSize().padding(22.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PotentiaRings(Modifier.size(72.dp), color = Gold.copy(alpha = .5f))
+            Spacer(Modifier.height(16.dp))
+            Heading("Belum ada hasil asesmen", 20)
+            Spacer(Modifier.height(6.dp))
+            Text("Selesaikan asesmen terlebih dahulu untuk melihat profil potensimu.", color = Muted, textAlign = TextAlign.Center)
+        }
+        return
+    }
+
+    val scores = result.toPotentialScores()
+    val ranked = DimensionOrder.mapNotNull { id ->
+        result.dimensions[id]?.score?.let { id to it }
+    }.sortedByDescending { it.second }
+    val creative = result.dimensions["creative"]
+
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(22.dp)
     ) {
-        Overline("Profil Potensi")
-        Heading("Agustus 2026", 28)
-        Text("Berdasarkan pola responsmu dalam asesmen ini", color = Muted, fontSize = 13.sp)
+        Overline("Profil Potensi · Pilot")
+        Heading(formatAssessmentDate(result.completedAt), 28)
+        Text("Berdasarkan respons yang tersimpan pada sesi asesmen ini", color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(14.dp))
 
-        RadarChart(DemoScores, Modifier.fillMaxWidth().height(290.dp))
+        RadarChart(scores, Modifier.fillMaxWidth().height(290.dp))
 
         Card(
             colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .09f)),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Prototipe UI: indeks di layar ini masih contoh tampilan dan belum merupakan scoring psikometrik tervalidasi.",
+                "Indeks 0–100 pada layar ini adalah transformasi scoring pilot V4.1, bukan percentile, norma populasi, IQ, atau diagnosis psikologis.",
                 modifier = Modifier.padding(14.dp),
                 color = Muted,
                 fontSize = 12.sp,
@@ -1463,15 +1867,47 @@ private fun ResultOverviewScreen(
             )
         }
 
+        if (creative?.experimental == true) {
+            Spacer(Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4E2)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    if (creative.outOfDomain) {
+                        "Skor Kreatif menggunakan model AI eksperimental. Respons Potentia Bahasa Indonesia berada di luar domain training model (Cambridge AUT berbahasa Inggris), sehingga skor ini belum boleh dianggap hasil kreativitas tervalidasi."
+                    } else {
+                        "Skor Kreatif menggunakan model AI eksperimental dan belum tervalidasi sebagai ukuran psikometrik."
+                    },
+                    modifier = Modifier.padding(14.dp),
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+
         Spacer(Modifier.height(22.dp))
-        SectionLabel("Potensi yang Paling Menonjol")
-        ResultHighlight("Penalaran Logis", "Kecenderungan kuat", "Kamu cenderung mengenali pola, menyusun informasi, dan memecah persoalan menjadi bagian yang lebih kecil.")
-        Spacer(Modifier.height(10.dp))
-        ResultHighlight("Spasial", "Kecenderungan kuat", "Kamu menunjukkan kenyamanan dalam memahami hubungan visual dan perubahan orientasi.")
+        SectionLabel("Indeks Tertinggi pada Sesi Ini")
+        ranked.take(2).forEachIndexed { index, pair ->
+            val id = pair.first
+            val value = pair.second.roundToInt()
+            val info = DimensionInfos[id]
+            ResultHighlight(
+                DimensionLabels[id] ?: id,
+                "Indeks $value/100",
+                info?.description ?: "Dimensi pilot POTENTIA."
+            )
+            if (index == 0 && ranked.size > 1) Spacer(Modifier.height(10.dp))
+        }
+
         Spacer(Modifier.height(22.dp))
         PrimaryButton("Lihat Peta Lengkap", onClick = onMap)
         Spacer(Modifier.height(10.dp))
-        GhostButton("Jelajahi Detail Dimensi", onClick = onDetail)
+        GhostButton(
+            "Jelajahi Detail Dimensi",
+            onClick = { onDetail(ranked.firstOrNull()?.first ?: "logical") }
+        )
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -1560,7 +1996,22 @@ private fun RadarChart(
 }
 
 @Composable
-private fun PotentialDetailScreen(onBack: () -> Unit) {
+private fun PotentialDetailScreen(
+    result: AssessmentResult?,
+    dimensionId: String,
+    onBack: () -> Unit
+) {
+    val label = DimensionLabels[dimensionId] ?: dimensionId
+    val info = DimensionInfos[dimensionId]
+    val dimensionResult = result?.dimensions?.get(dimensionId)
+    val score = dimensionResult?.score?.roundToInt()?.coerceIn(0, 100)
+    val scoreLabel = when {
+        score == null -> "Belum ada skor yang cukup"
+        score >= 75 -> "Indeks relatif tinggi pada sesi ini"
+        score >= 60 -> "Indeks menengah pada sesi ini"
+        else -> "Area yang dapat dieksplorasi"
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1577,49 +2028,90 @@ private fun PotentialDetailScreen(onBack: () -> Unit) {
                 .padding(24.dp)
         ) {
             PotentiaRings(
-                Modifier
-                    .size(170.dp)
-                    .align(Alignment.CenterEnd),
+                Modifier.size(170.dp).align(Alignment.CenterEnd),
                 color = Ivory.copy(alpha = .10f)
             )
             Column {
-                Text("DIMENSI POTENSI", color = Ivory.copy(alpha = .42f), fontSize = 11.sp, letterSpacing = 1.5.sp)
+                Text("DIMENSI POTENSI · PILOT", color = Ivory.copy(alpha = .42f), fontSize = 11.sp, letterSpacing = 1.5.sp)
                 Spacer(Modifier.height(6.dp))
-                Heading("Penalaran Logis", 30, Ivory)
+                Heading(label, 30, Ivory)
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("82", color = Gold, fontFamily = FontFamily.Serif, fontSize = 58.sp)
+                    Text(score?.toString() ?: "—", color = Gold, fontFamily = FontFamily.Serif, fontSize = 58.sp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.padding(bottom = 8.dp)) {
-                        Text("Indeks kecenderungan", color = Ivory.copy(alpha = .45f), fontSize = 12.sp)
-                        Text("Kecenderungan kuat", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Indeks pilot 0–100", color = Ivory.copy(alpha = .45f), fontSize = 12.sp)
+                        Text(scoreLabel, color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
         Column(Modifier.padding(22.dp)) {
-            SectionLabel("Pola yang Teramati")
-            ScoreBar("Pengenalan pola angka", 88)
-            Spacer(Modifier.height(16.dp))
-            ScoreBar("Analisis situasi bertahap", 79)
-            Spacer(Modifier.height(16.dp))
-            ScoreBar("Konsistensi respons logis", 80)
+            if (score != null) {
+                SectionLabel("Ringkasan Skor")
+                ScoreBar(label, score, "Transformasi skor pilot; bukan percentile/norma populasi")
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Respons terhitung: ${dimensionResult?.answered ?: 0}/${dimensionResult?.expected ?: 0}",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+            } else {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4E2)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Skor belum ditampilkan karena respons yang valid belum memenuhi ambang minimum.",
+                        modifier = Modifier.padding(14.dp),
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
 
-            Spacer(Modifier.height(28.dp))
-            SectionLabel("Tentang Kecenderungan Ini")
+            if (dimensionId == "creative" && dimensionResult?.experimental == true) {
+                Spacer(Modifier.height(16.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .09f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        if (dimensionResult.outOfDomain) {
+                            "AI Kreatif aktif, tetapi respons ini out-of-domain terhadap data training berbahasa Inggris. Gunakan hanya sebagai sinyal eksperimen."
+                        } else {
+                            "AI Kreatif aktif dan masih berstatus eksperimen."
+                        },
+                        modifier = Modifier.padding(14.dp),
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(26.dp))
+            SectionLabel("Tentang Dimensi Ini")
             Text(
-                "Responsmu menunjukkan kecenderungan untuk mendekati masalah secara sistematis—mencari pola, menyusun langkah, dan memverifikasi kesimpulan. Ini adalah alat refleksi, bukan label permanen.",
+                info?.description ?: "Dimensi pilot POTENTIA untuk eksplorasi diri.",
                 color = Muted,
                 fontSize = 14.sp,
                 lineHeight = 22.sp
             )
 
             Spacer(Modifier.height(26.dp))
-            SectionLabel("Area Pengembangan")
-            DevelopmentTip("Latihan deduksi informal dan teka-teki logika.")
-            DevelopmentTip("Menulis alur argumen untuk memperjelas pemikiran.")
-            DevelopmentTip("Mencoba permainan strategi yang melatih antisipasi multi-langkah.")
+            SectionLabel("Ide Pengembangan")
+            info?.tips.orEmpty().forEach { DevelopmentTip(it) }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Jangan membaca skor sebagai kemampuan absolut atau label permanen. Interpretasi dapat berubah setelah instrumen diuji pada responden nyata.",
+                color = Muted.copy(alpha = .8f),
+                fontSize = 11.sp,
+                lineHeight = 17.sp
+            )
             Spacer(Modifier.height(18.dp))
         }
     }
@@ -1644,8 +2136,9 @@ private fun DevelopmentTip(text: String) {
 
 @Composable
 private fun PotentialMapScreen(
+    result: AssessmentResult?,
     onBack: () -> Unit,
-    onDetail: () -> Unit
+    onDetail: (String) -> Unit
 ) {
     Column(
         Modifier
@@ -1655,28 +2148,48 @@ private fun PotentialMapScreen(
     ) {
         TopBack(onBack)
         Spacer(Modifier.height(10.dp))
-        Overline("Agustus 2026")
+        Overline(result?.let { formatAssessmentDate(it.completedAt) } ?: "Profil Potensi")
         Heading("Peta Potensi", 27)
         Spacer(Modifier.height(20.dp))
 
-        DemoScores.forEach { score ->
+        if (result == null) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onDetail)
-                    .padding(vertical = 14.dp)
+                Modifier.fillMaxWidth().padding(vertical = 36.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                ScoreBar(
-                    score.label,
-                    score.value,
-                    when {
-                        score.value >= 75 -> "Kecenderungan kuat"
-                        score.value >= 62 -> "Kecenderungan sedang"
-                        else -> "Area pengembangan"
-                    }
-                )
+                PotentiaRings(Modifier.size(64.dp), color = Gold.copy(alpha = .45f))
+                Spacer(Modifier.height(12.dp))
+                Text("Belum ada hasil asesmen.", color = Muted)
             }
-            HorizontalDivider(color = Stone.copy(alpha = .55f))
+        } else {
+            DimensionOrder.forEach { id ->
+                val dimension = result.dimensions[id]
+                val value = dimension?.score?.roundToInt()?.coerceIn(0, 100)
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onDetail(id) }
+                        .padding(vertical = 14.dp)
+                ) {
+                    if (value != null) {
+                        ScoreBar(
+                            DimensionLabels[id] ?: id,
+                            value,
+                            when {
+                                value >= 75 -> "Indeks relatif tinggi pada sesi ini"
+                                value >= 60 -> "Indeks menengah pada sesi ini"
+                                else -> "Area yang dapat dieksplorasi"
+                            }
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(DimensionLabels[id] ?: id, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text("Belum cukup respons", color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+                HorizontalDivider(color = Stone.copy(alpha = .55f))
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -1685,7 +2198,7 @@ private fun PotentialMapScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Indeks ini adalah tampilan prototipe dan bukan ukuran kemampuan absolut. Semua dimensi dapat berkembang.",
+                "Semua indeks masih berstatus pilot/research. Nilai 0–100 bukan percentile, norma populasi, atau ukuran kemampuan absolut.",
                 modifier = Modifier.padding(15.dp),
                 color = Muted,
                 fontSize = 12.sp,
@@ -1697,13 +2210,16 @@ private fun PotentialMapScreen(
 }
 
 @Composable
-private fun GrowthScreen() {
-    val exercises = listOf(
-        Triple("Sen", "Mulai percakapan baru", "Ajak bicara seseorang yang belum kamu kenal baik"),
-        Triple("Rab", "Latihan mendengar aktif", "Fokus bertanya dan memahami sebelum menjawab"),
-        Triple("Jum", "Refleksi interaksi sosial", "Tulis satu hal yang kamu pelajari minggu ini"),
-        Triple("Ming", "Tantangan mini: bergabung", "Hadiri satu aktivitas sosial, meski singkat")
-    )
+private fun GrowthScreen(result: AssessmentResult?) {
+    val focus = result?.let { assessment ->
+        DimensionOrder.mapNotNull { id ->
+            assessment.dimensions[id]?.score?.let { id to it }
+        }.minByOrNull { it.second }
+    }
+    val focusId = focus?.first
+    val focusLabel = focusId?.let { DimensionLabels[it] } ?: "Belum ditentukan"
+    val info = focusId?.let { DimensionInfos[it] }
+    var challengeDone by rememberSaveable(focusId) { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -1715,6 +2231,26 @@ private fun GrowthScreen() {
         Heading("Rekomendasi\nPengembangan", 27)
         Spacer(Modifier.height(22.dp))
 
+        if (focus == null) {
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 36.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PotentiaRings(Modifier.size(70.dp), color = Gold.copy(alpha = .5f))
+                Spacer(Modifier.height(14.dp))
+                Heading("Selesaikan asesmen dulu", 18)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Rekomendasi akan dibuat dari dimensi dengan indeks terendah pada hasil asesmen terbarumu.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+            return@Column
+        }
+
         Box(
             Modifier
                 .fillMaxWidth()
@@ -1723,16 +2259,14 @@ private fun GrowthScreen() {
                 .padding(20.dp)
         ) {
             PotentiaRings(
-                Modifier
-                    .size(130.dp)
-                    .align(Alignment.BottomEnd),
+                Modifier.size(130.dp).align(Alignment.BottomEnd),
                 color = Ivory.copy(alpha = .10f)
             )
             Column(Modifier.fillMaxWidth(.78f)) {
-                Text("FOKUS MINGGU INI", color = Ivory.copy(alpha = .42f), fontSize = 11.sp, letterSpacing = 1.3.sp)
-                Heading("Dimensi Sosial", 21, Ivory)
+                Text("FOKUS EKSPLORASI", color = Ivory.copy(alpha = .42f), fontSize = 11.sp, letterSpacing = 1.3.sp)
+                Heading(focusLabel, 21, Ivory)
                 Text(
-                    "Area ini memiliki ruang pengembangan terbesar pada profil contoh.",
+                    "Indeks sesi terakhir: ${focus.second.roundToInt()}/100. Ini bukan diagnosis atau label kekurangan.",
                     color = Ivory.copy(alpha = .55f),
                     fontSize = 13.sp,
                     lineHeight = 19.sp
@@ -1741,8 +2275,9 @@ private fun GrowthScreen() {
         }
 
         Spacer(Modifier.height(24.dp))
-        SectionLabel("Latihan Minggu Ini")
-        exercises.forEachIndexed { i, ex ->
+        SectionLabel("Latihan yang Bisa Dicoba")
+        info?.tips.orEmpty().forEachIndexed { index, tip ->
+            val day = listOf("Sen", "Rab", "Jum").getOrElse(index) { "Hari" }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1753,19 +2288,13 @@ private fun GrowthScreen() {
                     .padding(14.dp)
             ) {
                 Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (i < 2) Gold else Stone.copy(alpha = .55f)),
+                    Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Gold.copy(alpha = .14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(ex.first, color = if (i < 2) Ivory else Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(day, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(ex.second, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(ex.third, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                }
+                Text(tip, color = Charcoal, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
             }
         }
 
@@ -1780,33 +2309,43 @@ private fun GrowthScreen() {
                 .padding(15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Gold)
+            Icon(if (challengeDone) Icons.Outlined.CheckCircle else Icons.Outlined.PlayCircleOutline, null, tint = Gold)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Tanya kabar seseorang", fontWeight = FontWeight.Bold)
-                Text("3 menit · Dimensi Sosial", color = Muted, fontSize = 12.sp)
+                Text(if (challengeDone) "Tantangan dicoba" else "Pilih satu latihan di atas", fontWeight = FontWeight.Bold)
+                Text("5–10 menit · $focusLabel", color = Muted, fontSize = 12.sp)
             }
             Button(
-                onClick = {},
-                colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                onClick = { challengeDone = !challengeDone },
+                colors = ButtonDefaults.buttonColors(containerColor = if (challengeDone) Success else Gold),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                Text("Coba", fontSize = 12.sp)
+                Text(if (challengeDone) "Selesai" else "Coba", fontSize = 12.sp)
             }
         }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Rekomendasi ini bersifat reflektif dan dibuat dari hasil pilot, bukan program intervensi psikologis.",
+            color = Muted,
+            fontSize = 11.sp,
+            lineHeight = 17.sp
+        )
         Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
 private fun HistoryScreen(
-    assessmentComplete: Boolean,
+    history: List<AssessmentResult>,
     onBack: () -> Unit,
     onStartAssessment: () -> Unit,
-    onResult: () -> Unit,
+    onResult: (Long) -> Unit,
     onCompare: () -> Unit
 ) {
+    val ordered = history.sortedByDescending { it.completedAt }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1817,18 +2356,16 @@ private fun HistoryScreen(
         Spacer(Modifier.height(10.dp))
         Heading("Riwayat Asesmen", 27)
         Text(
-            "Asesmen yang telah kamu selesaikan akan tersimpan di sini.",
+            "Hasil asesmen yang selesai disimpan lokal di perangkat ini.",
             color = Muted,
             fontSize = 13.sp,
             lineHeight = 19.sp
         )
         Spacer(Modifier.height(22.dp))
 
-        if (!assessmentComplete) {
+        if (ordered.isEmpty()) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 28.dp),
+                Modifier.fillMaxWidth().padding(vertical = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 PotentiaRings(Modifier.size(60.dp), color = Gold.copy(alpha = .48f))
@@ -1846,44 +2383,71 @@ private fun HistoryScreen(
                 PrimaryButton("Mulai Asesmen", onClick = onStartAssessment)
             }
         } else {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onResult)
-                    .padding(vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            ordered.forEachIndexed { index, assessment ->
+                val values = assessment.dimensions.values.mapNotNull { it.score }
+                val average = values.takeIf { it.isNotEmpty() }?.average()?.roundToInt()
+                val topLabels = DimensionOrder.mapNotNull { id ->
+                    assessment.dimensions[id]?.score?.let { id to it }
+                }.sortedByDescending { it.second }
+                    .take(2)
+                    .joinToString(" & ") { (id, _) -> DimensionLabels[id] ?: id }
+
+                Row(
                     Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Gold.copy(alpha = .12f)),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .clickable { onResult(assessment.completedAt) }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("82", fontFamily = FontFamily.Serif, fontSize = 17.sp, color = Gold)
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Agustus 2026", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("TERBARU", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.size(44.dp).clip(RoundedCornerShape(9.dp)).background(Gold.copy(alpha = .12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(average?.toString() ?: "—", fontFamily = FontFamily.Serif, fontSize = 17.sp, color = Gold)
                     }
-                    Text("Asesmen Lengkap · Logika & Spasial", color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(formatAssessmentDate(assessment.completedAt), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            if (index == 0) {
+                                Spacer(Modifier.width(8.dp))
+                                Text("TERBARU", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text(
+                            if (topLabels.isBlank()) "Hasil pilot" else "Indeks tertinggi: $topLabels",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Icon(Icons.Default.ChevronRight, null, tint = Muted.copy(alpha = .3f))
                 }
-                Icon(Icons.Default.ChevronRight, null, tint = Muted.copy(alpha = .3f))
+                if (index != ordered.lastIndex) HorizontalDivider(color = Stone.copy(alpha = .45f))
             }
-            HorizontalDivider(color = Stone.copy(alpha = .45f))
+
             Spacer(Modifier.height(18.dp))
-            GhostButton("Bandingkan Asesmen →", onClick = onCompare)
+            if (ordered.size >= 2) {
+                GhostButton("Bandingkan 2 Asesmen Terbaru →", onClick = onCompare)
+            } else {
+                Text(
+                    "Selesaikan minimal dua asesmen untuk melihat perbandingan.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
         }
         Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
-private fun ComparisonScreen(onBack: () -> Unit) {
-    val previous = listOf(78, 74, 62, 70, 55, 68)
+private fun ComparisonScreen(
+    history: List<AssessmentResult>,
+    onBack: () -> Unit
+) {
+    val ordered = history.sortedByDescending { it.completedAt }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1893,47 +2457,61 @@ private fun ComparisonScreen(onBack: () -> Unit) {
         TopBack(onBack)
         Spacer(Modifier.height(10.dp))
         Heading("Perbandingan Asesmen", 27)
-        Text("Agustus 2026 dibanding Mei 2026", color = Muted, fontSize = 13.sp)
+
+        if (ordered.size < 2) {
+            Spacer(Modifier.height(8.dp))
+            Text("Diperlukan minimal dua asesmen yang selesai.", color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.height(28.dp))
+            PotentiaRings(Modifier.size(72.dp).align(Alignment.CenterHorizontally), color = Gold.copy(alpha = .45f))
+            return@Column
+        }
+
+        val current = ordered[0]
+        val previous = ordered[1]
+        Text(
+            "${formatAssessmentDate(current.completedAt)} dibanding ${formatAssessmentDate(previous.completedAt)}",
+            color = Muted,
+            fontSize = 13.sp
+        )
         Spacer(Modifier.height(24.dp))
 
-        DemoScores.forEachIndexed { i, current ->
+        DimensionOrder.forEach { id ->
+            val currentRaw = current.dimensions[id]?.score
+            val previousRaw = previous.dimensions[id]?.score
+            val currentValue = currentRaw?.roundToInt()?.coerceIn(0, 100)
+            val previousValue = previousRaw?.roundToInt()?.coerceIn(0, 100)
+            val diff = if (currentValue != null && previousValue != null) currentValue - previousValue else null
+
             Column(Modifier.padding(bottom = 18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(current.label, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(previous[i].toString(), color = Muted, fontSize = 12.sp)
+                    Text(DimensionLabels[id] ?: id, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(previousValue?.toString() ?: "—", color = Muted, fontSize = 12.sp)
                     Text("  →  ", color = Muted.copy(alpha = .55f))
-                    Text(current.value.toString(), color = Gold, fontFamily = FontFamily.Serif, fontSize = 17.sp)
-                    Spacer(Modifier.width(8.dp))
-                    val diff = current.value - previous[i]
-                    Text(
-                        if (diff >= 0) "+$diff" else "$diff",
-                        color = if (diff >= 0) Success else Color(0xFFB5451B),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
+                    Text(currentValue?.toString() ?: "—", color = Gold, fontFamily = FontFamily.Serif, fontSize = 17.sp)
+                    if (diff != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (diff >= 0) "+$diff" else "$diff",
+                            color = if (diff >= 0) Success else Color(0xFFB5451B),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
                 Spacer(Modifier.height(7.dp))
                 Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(CircleShape)
-                        .background(Stone.copy(alpha = .55f))
+                    Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(Stone.copy(alpha = .55f))
                 ) {
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(previous[i] / 100f)
-                            .background(Muted.copy(alpha = .25f))
-                    )
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(current.value / 100f)
-                            .padding(vertical = 1.5.dp)
-                            .clip(CircleShape)
-                            .background(Gold)
-                    )
+                    if (previousValue != null) {
+                        Box(
+                            Modifier.fillMaxHeight().fillMaxWidth(previousValue / 100f).background(Muted.copy(alpha = .25f))
+                        )
+                    }
+                    if (currentValue != null) {
+                        Box(
+                            Modifier.fillMaxHeight().fillMaxWidth(currentValue / 100f).padding(vertical = 1.5.dp).clip(CircleShape).background(Gold)
+                        )
+                    }
                 }
             }
         }
@@ -1943,7 +2521,7 @@ private fun ComparisonScreen(onBack: () -> Unit) {
             border = BorderStroke(1.dp, Stone)
         ) {
             Text(
-                "Perubahan dapat dipengaruhi pengalaman, kondisi saat menjawab, dan cara pengguna memahami pertanyaan. Jangan membaca selisih sebagai bukti peningkatan kemampuan absolut.",
+                "Selisih antar-sesi tidak membuktikan peningkatan atau penurunan kemampuan absolut. Kondisi saat menjawab, pemahaman item, dan status instrumen yang masih pilot dapat memengaruhi hasil.",
                 modifier = Modifier.padding(16.dp),
                 color = Muted,
                 fontSize = 13.sp,
@@ -1957,16 +2535,17 @@ private fun ComparisonScreen(onBack: () -> Unit) {
 @Composable
 private fun DimensionLibraryScreen(
     onBack: () -> Unit,
-    onDetail: () -> Unit
+    onDetail: (String) -> Unit
 ) {
-    val dims = listOf(
-        Triple("Penalaran Logis", "◈", "Mencari pola, struktur, hubungan sebab-akibat, dan langkah penyelesaian."),
-        Triple("Kreatif", "◌", "Menghubungkan ide, menghasilkan alternatif, dan melihat sudut pandang baru."),
-        Triple("Verbal", "◎", "Memahami dan mengekspresikan ide melalui bahasa."),
-        Triple("Spasial", "⬡", "Memvisualisasikan bentuk, orientasi, dan hubungan dalam ruang."),
-        Triple("Sosial", "○", "Membaca konteks interpersonal dan bekerja bersama orang lain."),
-        Triple("Pemecahan Masalah Praktis", "⊕", "Mengubah ide menjadi tindakan dan solusi yang dapat diterapkan.")
+    val symbols = mapOf(
+        "logical" to "◈",
+        "creative" to "◌",
+        "verbal" to "◎",
+        "spatial" to "⬡",
+        "social" to "○",
+        "practical" to "⊕"
     )
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1977,14 +2556,16 @@ private fun DimensionLibraryScreen(
         Spacer(Modifier.height(10.dp))
         Heading("Dimensi Potensi", 27)
         Text(
-            "Enam dimensi ini bukan kategori eksklusif. Setiap orang dapat memiliki kombinasi yang berbeda.",
+            "Enam dimensi ini dipakai sebagai bahasa eksplorasi pada pilot POTENTIA, bukan kategori manusia yang eksklusif.",
             color = Muted,
             fontSize = 13.sp,
             lineHeight = 19.sp
         )
         Spacer(Modifier.height(20.dp))
 
-        dims.forEach { d ->
+        DimensionOrder.forEach { id ->
+            val title = DimensionLabels[id] ?: id
+            val description = DimensionInfos[id]?.description.orEmpty()
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1992,22 +2573,19 @@ private fun DimensionLibraryScreen(
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White)
                     .border(1.dp, Stone, RoundedCornerShape(12.dp))
-                    .clickable(onClick = onDetail)
+                    .clickable { onDetail(id) }
                     .padding(15.dp)
             ) {
                 Box(
-                    Modifier
-                        .size(43.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Gold.copy(alpha = .12f)),
+                    Modifier.size(43.dp).clip(RoundedCornerShape(10.dp)).background(Gold.copy(alpha = .12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(d.second, color = Gold, fontSize = 20.sp)
+                    Text(symbols[id] ?: "•", color = Gold, fontSize = 20.sp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(d.first, fontWeight = FontWeight.Bold)
-                    Text(d.third, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text(title, fontWeight = FontWeight.Bold)
+                    Text(description, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
             }
         }
@@ -2018,6 +2596,7 @@ private fun DimensionLibraryScreen(
 @Composable
 private fun ProfileScreen(
     assessmentComplete: Boolean,
+    assessmentCount: Int,
     onHistory: () -> Unit,
     onComparison: () -> Unit,
     onResult: () -> Unit,
@@ -2032,10 +2611,7 @@ private fun ProfileScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier
-                    .size(58.dp)
-                    .clip(CircleShape)
-                    .background(Gold.copy(alpha = .12f)),
+                Modifier.size(58.dp).clip(CircleShape).background(Gold.copy(alpha = .12f)),
                 contentAlignment = Alignment.Center
             ) {
                 PotentiaRings(Modifier.size(38.dp))
@@ -2044,7 +2620,7 @@ private fun ProfileScreen(
             Column {
                 Heading("Pengguna", 21)
                 Text(
-                    if (assessmentComplete) "1 asesmen selesai" else "Belum ada asesmen",
+                    if (assessmentComplete) "$assessmentCount asesmen selesai" else "Belum ada asesmen",
                     color = Muted,
                     fontSize = 13.sp
                 )
@@ -2054,16 +2630,18 @@ private fun ProfileScreen(
         Spacer(Modifier.height(28.dp))
         SectionLabel("Asesmen")
         SettingsRow("Riwayat Asesmen", onClick = onHistory)
-        if (assessmentComplete) {
+        if (assessmentCount >= 2) {
             SettingsRow("Perbandingan Kemajuan", onClick = onComparison)
+        }
+        if (assessmentComplete) {
             SettingsRow("Profil Terbaru", onClick = onResult)
         }
         SettingsRow("Cara Membaca Hasil", onClick = onAbout)
 
         Spacer(Modifier.height(24.dp))
-        SectionLabel("Preferensi")
+        SectionLabel("Preferensi & Data")
         SettingsRow("Pengaturan", onClick = onSettings)
-        SettingsRow("Privasi & Data", onClick = {})
+        SettingsRow("Privasi & Data", onClick = onSettings)
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Lainnya")
@@ -2100,12 +2678,35 @@ private fun SettingsRow(
 
 @Composable
 private fun SettingsScreen(
+    history: List<AssessmentResult>,
     onBack: () -> Unit,
     onAbout: () -> Unit,
     onDeleteHistory: () -> Unit
 ) {
-    var reminder by remember { mutableStateOf(true) }
-    var recommendations by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE) }
+    var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", true)) }
+    var recommendations by remember { mutableStateOf(prefs.getBoolean("development_recommendations", true)) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Hapus riwayat asesmen?") },
+            text = { Text("Semua hasil asesmen yang tersimpan lokal akan dihapus. Tindakan ini tidak dapat dibatalkan.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteHistory()
+                        showDeleteDialog = false
+                    }
+                ) { Text("Hapus", color = Color(0xFFB5451B)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Batal") }
+            }
+        )
+    }
 
     Column(
         Modifier
@@ -2118,19 +2719,37 @@ private fun SettingsScreen(
         Heading("Pengaturan", 27)
 
         Spacer(Modifier.height(24.dp))
-        SectionLabel("Notifikasi")
-        ToggleRow("Pengingat latihan mingguan", reminder) { reminder = it }
-        ToggleRow("Rekomendasi pengembangan", recommendations) { recommendations = it }
+        SectionLabel("Preferensi")
+        ToggleRow("Pengingat latihan mingguan", reminder) {
+            reminder = it
+            prefs.edit().putBoolean("reminder_weekly", it).apply()
+        }
+        ToggleRow("Rekomendasi pengembangan", recommendations) {
+            recommendations = it
+            prefs.edit().putBoolean("development_recommendations", it).apply()
+        }
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Data")
-        SettingsRow("Ekspor data saya", onClick = {})
-        SettingsRow("Hapus riwayat asesmen", danger = true, onClick = onDeleteHistory)
+        SettingsRow(
+            "Ekspor data saya",
+            info = if (history.isEmpty()) "Kosong" else "${history.size} asesmen",
+            onClick = {
+                val payload = AssessmentStorage.exportJson(history)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_SUBJECT, "Data asesmen POTENTIA")
+                    putExtra(Intent.EXTRA_TEXT, payload)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Ekspor data POTENTIA"))
+            }
+        )
+        SettingsRow("Hapus riwayat asesmen", danger = true, onClick = { showDeleteDialog = true })
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Tentang")
         SettingsRow("Tentang POTENTIA", onClick = onAbout)
-        SettingsRow("Versi", info = "1.0.0", onClick = {})
+        SettingsRow("Versi", info = "0.1.0 · Core V2", onClick = {})
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -2180,7 +2799,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         )
         ArticleSection(
             "Bukan tes IQ atau diagnosis",
-            "Hasil tidak mewakili kemampuan intelektual, bakat bawaan, atau kondisi psikologis. Indeks pada prototipe mencerminkan rancangan tampilan dan belum merupakan instrumen psikometrik tervalidasi."
+            "Hasil tidak mewakili IQ, bakat bawaan, atau kondisi psikologis. Indeks 0–100 sekarang dihitung dari scoring pilot V4.1, tetapi instrumennya belum tervalidasi secara psikometrik dan bukan norma populasi."
         )
         ArticleSection(
             "Potensi dapat berkembang",
@@ -2188,7 +2807,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         )
         ArticleSection(
             "Privasi data",
-            "Versi Android prototipe ini hanya menyimpan status onboarding dan asesmen secara lokal menggunakan SharedPreferences. Belum ada sinkronisasi server."
+            "Riwayat hasil asesmen disimpan lokal di perangkat menggunakan SharedPreferences. Jawaban per-item tidak dipertahankan setelah scoring selesai. Model Kreatif berjalan on-device dan belum ada sinkronisasi server."
         )
 
         Card(

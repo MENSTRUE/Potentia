@@ -1,0 +1,1456 @@
+{
+  "assessmentVersion": "potentia-pilot-v1.1",
+  "scoringVersion": "pilot-scoring-v1.1",
+  "language": "id",
+  "status": "PILOT_ONLY",
+  "productionValidated": false,
+  "totalItems": 47,
+  "sections": [
+    {
+      "id": "logical",
+      "title": "Penalaran Logis",
+      "instruction": "Pilih jawaban yang paling tepat berdasarkan pola atau aturan yang diberikan.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_001",
+          "dimensionId": "logical",
+          "subconstruct": "number_pattern",
+          "prompt": "Tentukan angka berikutnya: 2, 6, 12, 20, 30, ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "42"
+            },
+            {
+              "value": "B",
+              "label": "40"
+            },
+            {
+              "value": "C",
+              "label": "36"
+            },
+            {
+              "value": "D",
+              "label": "44"
+            }
+          ],
+          "correctValue": "A"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_002",
+          "dimensionId": "logical",
+          "subconstruct": "number_pattern",
+          "prompt": "Tentukan angka berikutnya: 81, 27, 9, 3, ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "0"
+            },
+            {
+              "value": "B",
+              "label": "1"
+            },
+            {
+              "value": "C",
+              "label": "1.5"
+            },
+            {
+              "value": "D",
+              "label": "2"
+            }
+          ],
+          "correctValue": "B"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_003",
+          "dimensionId": "logical",
+          "subconstruct": "rule_inference",
+          "prompt": "Jika semua Rava adalah Timo, dan tidak ada Timo yang merupakan Seka, kesimpulan mana yang pasti benar?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Sebagian Rava adalah Seka"
+            },
+            {
+              "value": "B",
+              "label": "Semua Seka adalah Rava"
+            },
+            {
+              "value": "C",
+              "label": "Tidak ada Rava yang merupakan Seka"
+            },
+            {
+              "value": "D",
+              "label": "Semua Timo adalah Rava"
+            }
+          ],
+          "correctValue": "C"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_004",
+          "dimensionId": "logical",
+          "subconstruct": "conditional_reasoning",
+          "prompt": "Jika lampu indikator merah menyala maka mesin harus diperiksa. Lampu indikator merah menyala. Apa kesimpulan yang paling tepat?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Tidak ada kesimpulan yang dapat dibuat"
+            },
+            {
+              "value": "B",
+              "label": "Mesin pasti rusak"
+            },
+            {
+              "value": "C",
+              "label": "Mesin harus dimatikan permanen"
+            },
+            {
+              "value": "D",
+              "label": "Mesin harus diperiksa"
+            }
+          ],
+          "correctValue": "D"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_005",
+          "dimensionId": "logical",
+          "subconstruct": "set_relation",
+          "prompt": "Semua anggota Tim A dapat menggunakan aplikasi X. Dito adalah anggota Tim A. Pernyataan mana yang pasti benar?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Dito dapat menggunakan aplikasi X"
+            },
+            {
+              "value": "B",
+              "label": "Dito adalah satu-satunya pengguna aplikasi X"
+            },
+            {
+              "value": "C",
+              "label": "Semua pengguna aplikasi X adalah anggota Tim A"
+            },
+            {
+              "value": "D",
+              "label": "Dito pasti ahli menggunakan aplikasi X"
+            }
+          ],
+          "correctValue": "A"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_006",
+          "dimensionId": "logical",
+          "subconstruct": "letter_pattern",
+          "prompt": "Tentukan huruf berikutnya: A, C, F, J, O, ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "T"
+            },
+            {
+              "value": "B",
+              "label": "U"
+            },
+            {
+              "value": "C",
+              "label": "V"
+            },
+            {
+              "value": "D",
+              "label": "W"
+            }
+          ],
+          "correctValue": "B"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_007",
+          "dimensionId": "logical",
+          "subconstruct": "analogy_rule",
+          "prompt": "Hubungan 3 → 10 mengikuti aturan yang sama dengan 5 → 26. Jika aturan sama, 7 → ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "42"
+            },
+            {
+              "value": "B",
+              "label": "48"
+            },
+            {
+              "value": "C",
+              "label": "50"
+            },
+            {
+              "value": "D",
+              "label": "56"
+            }
+          ],
+          "correctValue": "C"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_008",
+          "dimensionId": "logical",
+          "subconstruct": "constraint_reasoning",
+          "prompt": "Ada tiga tugas: P, Q, R. P harus dikerjakan sebelum Q, dan R harus sesudah Q. Urutan mana yang valid?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Q-P-R"
+            },
+            {
+              "value": "B",
+              "label": "P-R-Q"
+            },
+            {
+              "value": "C",
+              "label": "R-P-Q"
+            },
+            {
+              "value": "D",
+              "label": "P-Q-R"
+            }
+          ],
+          "correctValue": "D"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_009",
+          "dimensionId": "logical",
+          "subconstruct": "elimination",
+          "prompt": "Sebuah kode terdiri dari 3 digit berbeda. Digit ketiga adalah 2, digit pertama lebih besar 5 dari digit kedua, dan jumlah ketiga digit adalah 9. Kode mana yang memenuhi semua aturan?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "612"
+            },
+            {
+              "value": "B",
+              "label": "522"
+            },
+            {
+              "value": "C",
+              "label": "432"
+            },
+            {
+              "value": "D",
+              "label": "702"
+            }
+          ],
+          "correctValue": "A"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "LOG_010",
+          "dimensionId": "logical",
+          "subconstruct": "pattern_abstraction",
+          "prompt": "Pasangan berikut mengikuti aturan yang sama: 2 : 6, 3 : 11, 4 : 18. Dengan aturan yang sama, 5 : ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "21"
+            },
+            {
+              "value": "B",
+              "label": "27"
+            },
+            {
+              "value": "C",
+              "label": "25"
+            },
+            {
+              "value": "D",
+              "label": "30"
+            }
+          ],
+          "correctValue": "B"
+        }
+      ]
+    },
+    {
+      "id": "creative",
+      "title": "Kreatif",
+      "instruction": "Berikan jawaban yang relevan dan sebisa mungkin tidak biasa. Tidak ada satu jawaban benar.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "CRE_001",
+          "dimensionId": "creative",
+          "subconstruct": "alternate_uses",
+          "prompt": "Sebutkan hingga 3 kegunaan yang tidak biasa tetapi masih masuk akal untuk sebuah kardus bekas.",
+          "responseType": "free_text_list",
+          "pilotOnly": true,
+          "active": true,
+          "rubricId": "CREATIVE_ORIGINALITY_RELEVANCE_V1",
+          "maxResponses": 3
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "CRE_002",
+          "dimensionId": "creative",
+          "subconstruct": "solution_generation",
+          "prompt": "Sebuah ruang belajar kecil terasa panas dan tidak boleh menambah AC. Berikan hingga 3 ide berbeda untuk membuat ruangan terasa lebih nyaman.",
+          "responseType": "free_text_list",
+          "pilotOnly": true,
+          "active": true,
+          "rubricId": "CREATIVE_ORIGINALITY_RELEVANCE_V1",
+          "maxResponses": 3
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "CRE_003",
+          "dimensionId": "creative",
+          "subconstruct": "constraint_creativity",
+          "prompt": "Kamu harus mengingat 20 istilah baru tanpa menggunakan aplikasi atau internet. Tuliskan satu metode belajar kreatif yang akan kamu gunakan dan jelaskan singkat.",
+          "responseType": "free_text",
+          "pilotOnly": true,
+          "active": true,
+          "rubricId": "CREATIVE_ORIGINALITY_RELEVANCE_V1",
+          "maxResponses": 1
+        }
+      ]
+    },
+    {
+      "id": "verbal",
+      "title": "Verbal",
+      "instruction": "Pilih jawaban yang paling sesuai dengan hubungan makna atau informasi yang diberikan.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_001",
+          "dimensionId": "verbal",
+          "subconstruct": "synonym",
+          "prompt": "Kata yang paling dekat maknanya dengan 'akurat' adalah ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "luas"
+            },
+            {
+              "value": "B",
+              "label": "cepat"
+            },
+            {
+              "value": "C",
+              "label": "tepat"
+            },
+            {
+              "value": "D",
+              "label": "rumit"
+            }
+          ],
+          "correctValue": "C"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_002",
+          "dimensionId": "verbal",
+          "subconstruct": "antonym",
+          "prompt": "Lawan kata yang paling tepat untuk 'fleksibel' adalah ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "lentur"
+            },
+            {
+              "value": "B",
+              "label": "adaptif"
+            },
+            {
+              "value": "C",
+              "label": "dinamis"
+            },
+            {
+              "value": "D",
+              "label": "kaku"
+            }
+          ],
+          "correctValue": "D"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_003",
+          "dimensionId": "verbal",
+          "subconstruct": "analogy",
+          "prompt": "BUKU : MEMBACA = MUSIK : ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "mendengar"
+            },
+            {
+              "value": "B",
+              "label": "menulis"
+            },
+            {
+              "value": "C",
+              "label": "menggambar"
+            },
+            {
+              "value": "D",
+              "label": "menghitung"
+            }
+          ],
+          "correctValue": "A"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_004",
+          "dimensionId": "verbal",
+          "subconstruct": "sentence_inference",
+          "prompt": "Rina selalu tiba sebelum rapat dimulai. Hari ini Rina tiba pukul 08.50 dan rapat belum dimulai. Kesimpulan paling aman adalah ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Rapat pasti dimulai pukul 09.00"
+            },
+            {
+              "value": "B",
+              "label": "Rapat dimulai setelah pukul 08.50"
+            },
+            {
+              "value": "C",
+              "label": "Rina terlambat"
+            },
+            {
+              "value": "D",
+              "label": "Rapat dibatalkan"
+            }
+          ],
+          "correctValue": "B"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_005",
+          "dimensionId": "verbal",
+          "subconstruct": "context_meaning",
+          "prompt": "Dalam kalimat 'Data itu menjadi dasar keputusan', kata 'dasar' paling dekat berarti ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "lantai"
+            },
+            {
+              "value": "B",
+              "label": "bagian bawah"
+            },
+            {
+              "value": "C",
+              "label": "fondasi/acuan"
+            },
+            {
+              "value": "D",
+              "label": "sederhana"
+            }
+          ],
+          "correctValue": "C"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_006",
+          "dimensionId": "verbal",
+          "subconstruct": "statement_consistency",
+          "prompt": "Pernyataan: 'Tidak semua peserta menyelesaikan tugas.' Makna yang pasti sesuai adalah ...",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Hanya satu peserta yang menyelesaikan tugas"
+            },
+            {
+              "value": "B",
+              "label": "Tidak ada peserta yang menyelesaikan tugas"
+            },
+            {
+              "value": "C",
+              "label": "Semua peserta gagal"
+            },
+            {
+              "value": "D",
+              "label": "Setidaknya ada peserta yang tidak menyelesaikan tugas"
+            }
+          ],
+          "correctValue": "D"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_007",
+          "dimensionId": "verbal",
+          "subconstruct": "word_relation",
+          "prompt": "Manakah pasangan kata yang hubungannya paling mirip dengan 'dokter : pasien'?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "guru : murid"
+            },
+            {
+              "value": "B",
+              "label": "mobil : jalan"
+            },
+            {
+              "value": "C",
+              "label": "kertas : pena"
+            },
+            {
+              "value": "D",
+              "label": "pintu : rumah"
+            }
+          ],
+          "correctValue": "A"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "VER_008",
+          "dimensionId": "verbal",
+          "subconstruct": "short_text_inference",
+          "prompt": "Sebuah toko menurunkan harga tetapi jumlah pembeli tetap sama. Dari informasi itu saja, kesimpulan mana yang paling tepat?",
+          "responseType": "single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Harga tidak memengaruhi pembeli sama sekali"
+            },
+            {
+              "value": "B",
+              "label": "Penurunan harga belum tentu meningkatkan jumlah pembeli"
+            },
+            {
+              "value": "C",
+              "label": "Semua pembeli tidak peduli harga"
+            },
+            {
+              "value": "D",
+              "label": "Toko pasti mengalami kerugian"
+            }
+          ],
+          "correctValue": "B"
+        }
+      ]
+    },
+    {
+      "id": "spatial",
+      "title": "Spasial",
+      "instruction": "Perhatikan orientasi bentuk dan titik penanda, lalu pilih hasil rotasi yang benar.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_001",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 90° searah jarum jam. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "B",
+          "asset": "assets/SPA_001.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_002",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 180°. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "C",
+          "asset": "assets/SPA_002.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_003",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 90° searah jarum jam. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "D",
+          "asset": "assets/SPA_003.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_004",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 180°. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "B",
+          "asset": "assets/SPA_004.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_005",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 90° searah jarum jam. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "C",
+          "asset": "assets/SPA_005.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_006",
+          "dimensionId": "spatial",
+          "subconstruct": "mental_rotation",
+          "prompt": "Bentuk berikut diputar 180°. Perhatikan juga posisi titik penanda. Pilih hasil yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "A",
+          "asset": "assets/SPA_006.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_007",
+          "dimensionId": "spatial",
+          "subconstruct": "spatial_relation",
+          "prompt": "Panah berikut diputar 90° searah jarum jam. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "D",
+          "asset": "assets/SPA_007.png"
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SPA_008",
+          "dimensionId": "spatial",
+          "subconstruct": "spatial_relation",
+          "prompt": "Panah berikut diputar 270° searah jarum jam. Pilih hasil rotasi yang benar.",
+          "responseType": "single_choice_image",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "A"
+            },
+            {
+              "value": "B",
+              "label": "B"
+            },
+            {
+              "value": "C",
+              "label": "C"
+            },
+            {
+              "value": "D",
+              "label": "D"
+            }
+          ],
+          "correctValue": "B",
+          "asset": "assets/SPA_008.png"
+        }
+      ]
+    },
+    {
+      "id": "social",
+      "title": "Sosial",
+      "instruction": "Jawab sesuai kecenderunganmu atau pilih respons yang paling efektif pada skenario.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_001",
+          "dimensionId": "social",
+          "subconstruct": "social_engagement",
+          "prompt": "Saya cukup nyaman memulai percakapan ketika berada dalam kelompok baru.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": false
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_002",
+          "dimensionId": "social",
+          "subconstruct": "cooperation",
+          "prompt": "Saat bekerja dalam tim, saya berusaha membagi tugas secara adil dan jelas.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": false
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_003",
+          "dimensionId": "social",
+          "subconstruct": "perspective_taking",
+          "prompt": "Sebelum menilai keputusan orang lain, saya mencoba memahami alasan dari sudut pandangnya.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": false
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_004",
+          "dimensionId": "social",
+          "subconstruct": "teamwork",
+          "prompt": "Saya kesulitan menyesuaikan diri ketika harus bekerja dengan orang yang gaya kerjanya berbeda.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": true
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_005",
+          "dimensionId": "social",
+          "subconstruct": "social_engagement",
+          "prompt": "Dalam diskusi kelompok, saya cenderung menghindari berkontribusi meskipun memiliki ide.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": true
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_006",
+          "dimensionId": "social",
+          "subconstruct": "cooperation",
+          "prompt": "Jika terjadi perbedaan pendapat, saya lebih memilih mencari solusi bersama daripada sekadar memenangkan argumen.",
+          "responseType": "likert_1_5",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": 1,
+              "label": "Sangat tidak sesuai"
+            },
+            {
+              "value": 2,
+              "label": "Tidak sesuai"
+            },
+            {
+              "value": 3,
+              "label": "Netral"
+            },
+            {
+              "value": 4,
+              "label": "Sesuai"
+            },
+            {
+              "value": 5,
+              "label": "Sangat sesuai"
+            }
+          ],
+          "reverseScored": false
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_007",
+          "dimensionId": "social",
+          "subconstruct": "perspective_taking",
+          "prompt": "Seorang anggota tim terlambat mengumpulkan bagian tugasnya untuk kedua kalinya. Tindakan pertama yang paling tepat adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Menanyakan kendalanya, menjelaskan dampaknya pada tim, lalu menyepakati langkah perbaikan"
+            },
+            {
+              "value": "B",
+              "label": "Mengingatkan deadline berikutnya tanpa membahas penyebab keterlambatan"
+            },
+            {
+              "value": "C",
+              "label": "Mengalihkan sebagian tugasnya ke anggota lain agar pekerjaan cepat selesai"
+            },
+            {
+              "value": "D",
+              "label": "Meminta ketua tim langsung memberikan sanksi"
+            }
+          ],
+          "choiceScores": {
+            "A": 3.0,
+            "B": 2.0,
+            "C": 1.0,
+            "D": 0.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_008",
+          "dimensionId": "social",
+          "subconstruct": "teamwork",
+          "prompt": "Dua anggota tim memiliki ide berbeda dan diskusi mulai tidak produktif. Apa respons paling efektif?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Mengambil suara mayoritas secepatnya agar diskusi selesai"
+            },
+            {
+              "value": "B",
+              "label": "Meminta keduanya merangkum kelebihan dan risiko ide, lalu membandingkan dengan kriteria yang disepakati"
+            },
+            {
+              "value": "C",
+              "label": "Menggabungkan dua ide meskipun belum jelas kecocokannya"
+            },
+            {
+              "value": "D",
+              "label": "Meminta anggota paling berpengalaman menentukan pilihan"
+            }
+          ],
+          "choiceScores": {
+            "A": 2.0,
+            "B": 3.0,
+            "C": 1.0,
+            "D": 1.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_009",
+          "dimensionId": "social",
+          "subconstruct": "social_engagement",
+          "prompt": "Dalam kelompok baru, belum ada yang memulai koordinasi. Apa respons paling efektif?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Mulai mengerjakan bagian yang menurutmu paling penting sambil menunggu koordinasi"
+            },
+            {
+              "value": "B",
+              "label": "Menunggu beberapa menit agar orang lain mengambil inisiatif"
+            },
+            {
+              "value": "C",
+              "label": "Mengusulkan tujuan singkat dan pembagian peran awal, lalu meminta masukan anggota"
+            },
+            {
+              "value": "D",
+              "label": "Menentukan pembagian tugas sendiri supaya lebih cepat"
+            }
+          ],
+          "choiceScores": {
+            "A": 1.0,
+            "B": 1.0,
+            "C": 3.0,
+            "D": 2.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "SOC_010",
+          "dimensionId": "social",
+          "subconstruct": "cooperation",
+          "prompt": "Seorang teman tim memberi kritik yang tidak kamu setujui. Respons paling konstruktif adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Menjelaskan pembelaanmu terlebih dahulu sebelum mendengar detail kritik"
+            },
+            {
+              "value": "B",
+              "label": "Mendengarkan sampai selesai tetapi tetap memakai rencana awal tanpa membahasnya lagi"
+            },
+            {
+              "value": "C",
+              "label": "Meminta anggota lain menentukan siapa yang benar"
+            },
+            {
+              "value": "D",
+              "label": "Meminta contoh konkret, memastikan kamu memahami maksudnya, lalu menjelaskan pandanganmu"
+            }
+          ],
+          "choiceScores": {
+            "A": 1.0,
+            "B": 1.0,
+            "C": 2.0,
+            "D": 3.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "practical",
+      "title": "Praktis",
+      "instruction": "Pilih tindakan yang paling efektif berdasarkan informasi dalam situasi.",
+      "items": [
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_001",
+          "dimensionId": "practical",
+          "subconstruct": "resource_tradeoff",
+          "prompt": "Kamu punya waktu 2 jam untuk menyelesaikan dua tugas. Tugas A bernilai tinggi dan butuh 90 menit, tugas B bernilai sedang dan butuh 30 menit. Strategi paling rasional adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Kerjakan A selama 90 menit lalu gunakan sisa waktu untuk B"
+            },
+            {
+              "value": "B",
+              "label": "Kerjakan B lebih dulu karena lebih cepat selesai, lalu mulai A"
+            },
+            {
+              "value": "C",
+              "label": "Bagi waktu satu jam untuk masing-masing tugas"
+            },
+            {
+              "value": "D",
+              "label": "Mulai keduanya bergantian setiap 15 menit"
+            }
+          ],
+          "choiceScores": {
+            "A": 3.0,
+            "B": 2.0,
+            "C": 1.0,
+            "D": 1.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_002",
+          "dimensionId": "practical",
+          "subconstruct": "risk_management",
+          "prompt": "Kamu akan membeli perangkat bekas secara online. Penjual menawarkan harga sangat murah tetapi tidak mau menunjukkan bukti kondisi barang. Apa langkah terbaik?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Minta diskon tambahan sebagai kompensasi risiko"
+            },
+            {
+              "value": "B",
+              "label": "Minta bukti kondisi barang, cek reputasi penjual, dan gunakan metode pembayaran yang aman"
+            },
+            {
+              "value": "C",
+              "label": "Lanjut membeli hanya jika penjual mau melakukan panggilan video singkat"
+            },
+            {
+              "value": "D",
+              "label": "Bayar segera supaya tidak kehilangan harga murah"
+            }
+          ],
+          "choiceScores": {
+            "A": 1.0,
+            "B": 3.0,
+            "C": 2.0,
+            "D": 0.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_003",
+          "dimensionId": "practical",
+          "subconstruct": "prioritization",
+          "prompt": "Tiga pekerjaan datang bersamaan: satu mendesak dan penting, satu penting tetapi tidak mendesak, satu mendesak tetapi dampaknya kecil. Mana yang dikerjakan terlebih dahulu?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Selesaikan pekerjaan yang paling cepat untuk mengurangi daftar tugas"
+            },
+            {
+              "value": "B",
+              "label": "Mulai pekerjaan penting tetapi tidak mendesak agar kualitasnya maksimal"
+            },
+            {
+              "value": "C",
+              "label": "Kerjakan pekerjaan yang mendesak dan penting terlebih dahulu"
+            },
+            {
+              "value": "D",
+              "label": "Kerjakan pekerjaan mendesak berdampak kecil terlebih dahulu"
+            }
+          ],
+          "choiceScores": {
+            "A": 1.0,
+            "B": 2.0,
+            "C": 3.0,
+            "D": 1.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_004",
+          "dimensionId": "practical",
+          "subconstruct": "evidence_based_decision",
+          "prompt": "Dua solusi tersedia. Solusi X populer tetapi belum pernah diuji pada masalahmu. Solusi Y kurang populer tetapi memiliki data uji yang relevan. Apa langkah terbaik?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Pilih solusi Y karena bukti uji lebih relevan terhadap masalah"
+            },
+            {
+              "value": "B",
+              "label": "Pilih solusi yang biaya implementasinya paling rendah tanpa melihat bukti"
+            },
+            {
+              "value": "C",
+              "label": "Pilih solusi X karena sudah populer"
+            },
+            {
+              "value": "D",
+              "label": "Uji cepat kedua solusi pada skala kecil jika waktunya memungkinkan"
+            }
+          ],
+          "choiceScores": {
+            "A": 2.0,
+            "B": 0.0,
+            "C": 1.0,
+            "D": 3.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_005",
+          "dimensionId": "practical",
+          "subconstruct": "contingency_planning",
+          "prompt": "Kamu memiliki presentasi penting dan file utama hanya tersimpan di satu laptop. Tindakan paling baik sebelum berangkat adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Simpan salinan di media/cloud lain dan pastikan file cadangan dapat dibuka"
+            },
+            {
+              "value": "B",
+              "label": "Bawa charger serta pastikan baterai laptop penuh"
+            },
+            {
+              "value": "C",
+              "label": "Kirim file ke diri sendiri tanpa mengecek apakah lampiran berhasil"
+            },
+            {
+              "value": "D",
+              "label": "Gunakan laptop seperti biasa karena sebelumnya tidak pernah bermasalah"
+            }
+          ],
+          "choiceScores": {
+            "A": 3.0,
+            "B": 2.0,
+            "C": 2.0,
+            "D": 0.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_006",
+          "dimensionId": "practical",
+          "subconstruct": "constraint_handling",
+          "prompt": "Anggaran proyek berkurang 20%, tetapi target utama tetap sama. Respons paling tepat adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Kurangi biaya semua aktivitas dengan persentase yang sama"
+            },
+            {
+              "value": "B",
+              "label": "Identifikasi aktivitas inti, ukur dampaknya, lalu kurangi prioritas rendah"
+            },
+            {
+              "value": "C",
+              "label": "Pertahankan rencana awal dan cari tambahan anggaran sambil berjalan"
+            },
+            {
+              "value": "D",
+              "label": "Kurangi target utama agar sesuai dengan anggaran baru"
+            }
+          ],
+          "choiceScores": {
+            "A": 1.0,
+            "B": 3.0,
+            "C": 2.0,
+            "D": 1.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_007",
+          "dimensionId": "practical",
+          "subconstruct": "information_seeking",
+          "prompt": "Kamu harus mengambil keputusan cepat tetapi satu informasi penting belum tersedia. Apa yang paling baik?",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Gunakan asumsi yang paling masuk akal dan catat bahwa informasi belum lengkap"
+            },
+            {
+              "value": "B",
+              "label": "Tunda keputusan sampai informasi lengkap tersedia meskipun melewati batas waktu"
+            },
+            {
+              "value": "C",
+              "label": "Cari sumber cepat yang tepercaya, tentukan batas waktu pencarian, lalu putuskan dengan informasi terbaik yang tersedia"
+            },
+            {
+              "value": "D",
+              "label": "Ikuti pilihan mayoritas orang di sekitar agar risiko tanggung jawab lebih kecil"
+            }
+          ],
+          "choiceScores": {
+            "A": 2.0,
+            "B": 1.0,
+            "C": 3.0,
+            "D": 0.0
+          }
+        },
+        {
+          "assessmentVersion": "potentia-pilot-v1.1",
+          "itemId": "PRA_008",
+          "dimensionId": "practical",
+          "subconstruct": "adaptive_problem_solving",
+          "prompt": "Rencana awal gagal karena kondisi berubah. Langkah pertama yang paling tepat adalah ...",
+          "responseType": "sjt_single_choice",
+          "pilotOnly": true,
+          "active": true,
+          "choices": [
+            {
+              "value": "A",
+              "label": "Tunda keputusan sampai seluruh ketidakpastian hilang"
+            },
+            {
+              "value": "B",
+              "label": "Sesuaikan bagian rencana yang gagal tetapi pertahankan asumsi lainnya"
+            },
+            {
+              "value": "C",
+              "label": "Kembali ke rencana awal sambil menunggu kondisi normal"
+            },
+            {
+              "value": "D",
+              "label": "Nilai apa yang berubah, perbarui asumsi, lalu bandingkan alternatif yang masih layak"
+            }
+          ],
+          "choiceScores": {
+            "A": 0.0,
+            "B": 2.0,
+            "C": 1.0,
+            "D": 3.0
+          }
+        }
+      ]
+    }
+  ]
+}
