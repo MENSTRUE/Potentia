@@ -88,7 +88,7 @@ class CreativeScorer private constructor(
 
         val uiScore = if (model.targetMax > model.targetMin) {
             ((clipped - model.targetMin) /
-                (model.targetMax - model.targetMin)) * 100.0
+                    (model.targetMax - model.targetMin)) * 100.0
         } else {
             0.0
         }
@@ -103,7 +103,7 @@ class CreativeScorer private constructor(
             experimental = true,
             warning = if (outOfDomain) {
                 "Task '$normalizedTask' was not present in V5 training data. " +
-                    "Treat this score as experimental only."
+                        "Treat this score as experimental only."
             } else {
                 null
             }
@@ -324,7 +324,7 @@ private data class ModelBundle(
 }
 
 private val WORD_PATTERN: Pattern =
-    Pattern.compile("(?U)\\b\\w\\w+\\b")
+    Pattern.compile("\\b\\w\\w+\\b")
 
 private val MULTI_WS_PATTERN: Pattern =
     Pattern.compile("\\s\\s+")
