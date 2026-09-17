@@ -48,6 +48,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.potentia.assessment.*
+import com.potentia.growth.*
 import com.potentia.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -155,6 +156,9 @@ fun PotentiaApp() {
     }
     var assessmentComplete by remember {
         mutableStateOf(history.isNotEmpty())
+    }
+    var developmentRecommendationsEnabled by remember {
+        mutableStateOf(prefs.getBoolean("development_recommendations", true))
     }
     var selectedResultTimestamp by rememberSaveable {
         mutableStateOf(history.lastOrNull()?.completedAt)
@@ -476,7 +480,8 @@ fun PotentiaApp() {
                         onDetail = { dimensionId -> openDimension(dimensionId) }
                     )
                     Screen.GROWTH -> GrowthScreen(
-                        result = history.lastOrNull()
+                        result = history.lastOrNull(),
+                        recommendationsEnabled = developmentRecommendationsEnabled
                     )
                     Screen.HISTORY -> HistoryScreen(
                         history = history,
@@ -504,10 +509,16 @@ fun PotentiaApp() {
                     )
                     Screen.SETTINGS -> SettingsScreen(
                         history = history,
+                        recommendationsEnabled = developmentRecommendationsEnabled,
+                        onRecommendationsEnabledChange = { enabled ->
+                            developmentRecommendationsEnabled = enabled
+                            prefs.edit().putBoolean("development_recommendations", enabled).apply()
+                        },
                         onBack = { navigate(Screen.PROFILE) },
                         onAbout = { navigate(Screen.ABOUT) },
                         onDeleteHistory = {
                             AssessmentStorage.clear(prefs)
+                            GrowthStorage.clear(prefs)
                             history = emptyList()
                             assessmentComplete = false
                             selectedResultTimestamp = null
@@ -2375,7 +2386,15 @@ private fun PotentialMapScreen(
 }
 
 @Composable
-private fun GrowthScreen(result: AssessmentResult?) {
+private fun GrowthScreen(
+    result: AssessmentResult?,
+    recommendationsEnabled: Boolean
+) {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE)
+    }
+
     val focus = result?.let { assessment ->
         DimensionOrder.mapNotNull { id ->
             assessment.dimensions[id]?.score?.let { id to it }
@@ -2383,8 +2402,6 @@ private fun GrowthScreen(result: AssessmentResult?) {
     }
     val focusId = focus?.first
     val focusLabel = focusId?.let { DimensionLabels[it] } ?: "Belum ditentukan"
-    val info = focusId?.let { DimensionInfos[it] }
-    var challengeDone by rememberSaveable(focusId) { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -2396,7 +2413,43 @@ private fun GrowthScreen(result: AssessmentResult?) {
         Heading("Rekomendasi\nPengembangan", 27)
         Spacer(Modifier.height(22.dp))
 
-        if (focus == null) {
+        if (!recommendationsEnabled) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Charcoal)
+                    .padding(20.dp)
+            ) {
+                Column {
+                    Text(
+                        "REKOMENDASI DINONAKTIFKAN",
+                        color = Ivory.copy(alpha = .45f),
+                        fontSize = 11.sp,
+                        letterSpacing = 1.2.sp
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Heading("Mode Tumbuh sedang nonaktif", 19, Ivory)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Aktifkan kembali melalui Profil → Pengaturan → Rekomendasi pengembangan.",
+                        color = Ivory.copy(alpha = .62f),
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Hasil asesmenmu tetap tersimpan. Pengaturan ini hanya mengatur apakah rekomendasi latihan ditampilkan.",
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+            return@Column
+        }
+
+        if (focus == null || focusId == null) {
             Column(
                 Modifier.fillMaxWidth().padding(vertical = 36.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -2416,6 +2469,27 @@ private fun GrowthScreen(result: AssessmentResult?) {
             return@Column
         }
 
+        val exercises = remember(focusId) {
+            GrowthCatalog.forDimension(focusId)
+        }
+        val weekKey = remember {
+            GrowthStorage.currentWeekKey()
+        }
+        var progress by remember(focusId, weekKey) {
+            mutableStateOf(GrowthStorage.load(prefs, weekKey, focusId))
+        }
+
+        fun saveProgress(next: GrowthProgress) {
+            progress = next.copy(updatedAt = System.currentTimeMillis())
+            GrowthStorage.save(prefs, progress)
+        }
+
+        val selectedExercise = exercises.firstOrNull { it.id == progress.selectedExerciseId }
+        val activeExercise = exercises.firstOrNull { it.id == progress.activeExerciseId }
+        val completedCount = progress.completedExerciseIds.count { completedId ->
+            exercises.any { it.id == completedId }
+        }
+
         Box(
             Modifier
                 .fillMaxWidth()
@@ -2428,7 +2502,12 @@ private fun GrowthScreen(result: AssessmentResult?) {
                 color = Ivory.copy(alpha = .10f)
             )
             Column(Modifier.fillMaxWidth(.78f)) {
-                Text("FOKUS EKSPLORASI", color = Ivory.copy(alpha = .42f), fontSize = 11.sp, letterSpacing = 1.3.sp)
+                Text(
+                    "FOKUS EKSPLORASI",
+                    color = Ivory.copy(alpha = .42f),
+                    fontSize = 11.sp,
+                    letterSpacing = 1.3.sp
+                )
                 Heading(focusLabel, 21, Ivory)
                 Text(
                     "Indeks sesi terakhir: ${focus.second.roundToInt()}/100. Ini bukan diagnosis atau label kekurangan.",
@@ -2436,68 +2515,346 @@ private fun GrowthScreen(result: AssessmentResult?) {
                     fontSize = 13.sp,
                     lineHeight = 19.sp
                 )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "$completedCount/${exercises.size} latihan selesai minggu ini",
+                    color = Gold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
 
         Spacer(Modifier.height(24.dp))
-        SectionLabel("Latihan yang Bisa Dicoba")
-        info?.tips.orEmpty().forEachIndexed { index, tip ->
-            val day = listOf("Sen", "Rab", "Jum").getOrElse(index) { "Hari" }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
-                    .border(1.dp, Stone, RoundedCornerShape(10.dp))
-                    .padding(14.dp)
-            ) {
-                Box(
-                    Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Gold.copy(alpha = .14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(day, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        SectionLabel("Pilih Latihan")
+        Text(
+            "Pilih satu latihan. Setelah dipilih, baca instruksinya lalu tekan Mulai Latihan.",
+            color = Muted,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(10.dp))
+
+        exercises.forEachIndexed { index, exercise ->
+            GrowthExerciseCard(
+                exercise = exercise,
+                number = index + 1,
+                selected = progress.selectedExerciseId == exercise.id,
+                active = progress.activeExerciseId == exercise.id,
+                completed = exercise.id in progress.completedExerciseIds,
+                enabled = progress.activeExerciseId == null || progress.activeExerciseId == exercise.id,
+                onSelect = {
+                    saveProgress(
+                        progress.copy(
+                            selectedExerciseId = exercise.id
+                        )
+                    )
                 }
-                Spacer(Modifier.width(12.dp))
-                Text(tip, color = Charcoal, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
-            }
+            )
+            if (index != exercises.lastIndex) Spacer(Modifier.height(8.dp))
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
         SectionLabel("Tantangan Singkat")
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .border(1.dp, Stone, RoundedCornerShape(12.dp))
-                .padding(15.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(if (challengeDone) Icons.Outlined.CheckCircle else Icons.Outlined.PlayCircleOutline, null, tint = Gold)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(if (challengeDone) "Tantangan dicoba" else "Pilih satu latihan di atas", fontWeight = FontWeight.Bold)
-                Text("5–10 menit · $focusLabel", color = Muted, fontSize = 12.sp)
+
+        GrowthChallengePanel(
+            focusLabel = focusLabel,
+            selectedExercise = selectedExercise,
+            activeExercise = activeExercise,
+            selectedCompleted = selectedExercise?.id in progress.completedExerciseIds,
+            onStart = {
+                val exercise = selectedExercise ?: return@GrowthChallengePanel
+                saveProgress(
+                    progress.copy(
+                        selectedExerciseId = exercise.id,
+                        activeExerciseId = exercise.id
+                    )
+                )
+            },
+            onComplete = {
+                val exercise = activeExercise ?: return@GrowthChallengePanel
+                saveProgress(
+                    progress.copy(
+                        selectedExerciseId = exercise.id,
+                        activeExerciseId = null,
+                        completedExerciseIds = progress.completedExerciseIds + exercise.id
+                    )
+                )
             }
-            Button(
-                onClick = { challengeDone = !challengeDone },
-                colors = ButtonDefaults.buttonColors(containerColor = if (challengeDone) Success else Gold),
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text(if (challengeDone) "Selesai" else "Coba", fontSize = 12.sp)
-            }
-        }
+        )
 
         Spacer(Modifier.height(14.dp))
         Text(
-            "Rekomendasi ini bersifat reflektif dan dibuat dari hasil pilot, bukan program intervensi psikologis.",
+            "Rekomendasi ini bersifat reflektif dan dibuat dari hasil pilot, bukan program intervensi psikologis. Status selesai berarti kamu menandai latihan telah dicoba; Potentia tidak menilai benar atau salahnya latihan ini.",
             color = Muted,
             fontSize = 11.sp,
             lineHeight = 17.sp
         )
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun GrowthExerciseCard(
+    exercise: GrowthExercise,
+    number: Int,
+    selected: Boolean,
+    active: Boolean,
+    completed: Boolean,
+    enabled: Boolean,
+    onSelect: () -> Unit
+) {
+    val borderColor = when {
+        completed -> Success.copy(alpha = .65f)
+        selected -> Gold
+        else -> Stone
+    }
+    val backgroundColor = when {
+        selected -> Gold.copy(alpha = .06f)
+        else -> Color.White
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .border(
+                width = if (selected) 1.5.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(enabled = enabled, onClick = onSelect)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(
+                    when {
+                        completed -> Success.copy(alpha = .12f)
+                        selected -> Gold.copy(alpha = .18f)
+                        else -> Gold.copy(alpha = .10f)
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (completed) {
+                Icon(
+                    Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = Success,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(
+                    number.toString(),
+                    color = Gold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    exercise.title,
+                    color = Charcoal,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (active) {
+                    Text(
+                        "AKTIF",
+                        color = Gold,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = .8.sp
+                    )
+                } else if (completed) {
+                    Text(
+                        "SELESAI",
+                        color = Success,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = .8.sp
+                    )
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+            Text(
+                exercise.summary,
+                color = Muted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "± ${exercise.estimatedMinutes} menit",
+                color = Muted.copy(alpha = .8f),
+                fontSize = 10.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun GrowthChallengePanel(
+    focusLabel: String,
+    selectedExercise: GrowthExercise?,
+    activeExercise: GrowthExercise?,
+    selectedCompleted: Boolean,
+    onStart: () -> Unit,
+    onComplete: () -> Unit
+) {
+    val exerciseToShow = activeExercise ?: selectedExercise
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(1.dp, Stone, RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        when {
+            exerciseToShow == null -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.PlayCircleOutline, null, tint = Gold)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Belum ada latihan dipilih", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Pilih salah satu kartu latihan di atas terlebih dahulu.",
+                            color = Muted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Text("Mulai Latihan")
+                }
+            }
+
+            activeExercise != null -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.PlayCircleOutline, null, tint = Gold)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Sedang dilakukan", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(activeExercise.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("± ${activeExercise.estimatedMinutes} menit · $focusLabel", color = Muted, fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("Langkah latihan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Charcoal)
+                Spacer(Modifier.height(8.dp))
+                activeExercise.steps.forEachIndexed { index, step ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 9.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(
+                            Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Gold.copy(alpha = .13f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                (index + 1).toString(),
+                                color = Gold,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.width(9.dp))
+                        Text(
+                            step,
+                            color = Charcoal,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                Button(
+                    onClick = onComplete,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Success),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Tandai Selesai")
+                }
+            }
+
+            selectedCompleted -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.CheckCircle, null, tint = Success)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Selesai minggu ini", color = Success, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(exerciseToShow.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Pilih kartu latihan lain jika ingin mencoba tantangan berikutnya.",
+                            color = Muted,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.PlayCircleOutline, null, tint = Gold)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Latihan terpilih", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(exerciseToShow.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("± ${exerciseToShow.estimatedMinutes} menit · $focusLabel", color = Muted, fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    exerciseToShow.summary,
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Tekan Mulai Latihan untuk membuka langkah-langkahnya.",
+                    color = Charcoal,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(Icons.Outlined.PlayCircleOutline, null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Mulai Latihan")
+                }
+            }
+        }
     }
 }
 
@@ -2844,6 +3201,8 @@ private fun SettingsRow(
 @Composable
 private fun SettingsScreen(
     history: List<AssessmentResult>,
+    recommendationsEnabled: Boolean,
+    onRecommendationsEnabledChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onAbout: () -> Unit,
     onDeleteHistory: () -> Unit
@@ -2851,7 +3210,6 @@ private fun SettingsScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE) }
     var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", true)) }
-    var recommendations by remember { mutableStateOf(prefs.getBoolean("development_recommendations", true)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
@@ -2889,9 +3247,8 @@ private fun SettingsScreen(
             reminder = it
             prefs.edit().putBoolean("reminder_weekly", it).apply()
         }
-        ToggleRow("Rekomendasi pengembangan", recommendations) {
-            recommendations = it
-            prefs.edit().putBoolean("development_recommendations", it).apply()
+        ToggleRow("Rekomendasi pengembangan", recommendationsEnabled) {
+            onRecommendationsEnabledChange(it)
         }
 
         Spacer(Modifier.height(24.dp))
