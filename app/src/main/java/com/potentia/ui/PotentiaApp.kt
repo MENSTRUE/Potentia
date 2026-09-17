@@ -43,12 +43,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import com.potentia.ai.CreativeScorer
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.potentia.assessment.*
 import com.potentia.ui.theme.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -155,19 +156,28 @@ fun PotentiaApp() {
     var assessmentComplete by remember {
         mutableStateOf(history.isNotEmpty())
     }
-    var selectedResultTimestamp by remember {
+    var selectedResultTimestamp by rememberSaveable {
         mutableStateOf(history.lastOrNull()?.completedAt)
     }
-    var selectedDimensionId by remember { mutableStateOf("logical") }
+    var selectedDimensionId by rememberSaveable { mutableStateOf("logical") }
 
-    var screen by remember { mutableStateOf(Screen.SPLASH) }
-    var activeTab by remember { mutableStateOf(MainTab.HOME) }
+    var screen by rememberSaveable { mutableStateOf(Screen.SPLASH) }
+    var activeTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     var selectedAnswer by remember { mutableStateOf<Int?>(null) }
     var reflectionScore by remember { mutableStateOf<Int?>(null) }
-    var currentQuestionIndex by rememberSaveable { mutableIntStateOf(0) }
-    val assessmentResponses = remember { mutableStateMapOf<String, String>() }
-    var pendingResponses by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var processingError by remember { mutableStateOf<String?>(null) }
+
+    val assessmentSessionViewModel = if (assessmentBank != null) {
+        val factory = remember(assessmentBank, prefs, context.applicationContext) {
+            AssessmentSessionViewModelFactory(
+                bank = assessmentBank,
+                prefs = prefs,
+                context = context.applicationContext
+            )
+        }
+        viewModel<AssessmentSessionViewModel>(factory = factory)
+    } else {
+        null
+    }
 
     val onboardingComplete = remember {
         prefs.getBoolean("onboarding_complete", false)
@@ -194,47 +204,63 @@ fun PotentiaApp() {
     }
 
     LaunchedEffect(screen) {
-        when (screen) {
-            Screen.SPLASH -> {
-                delay(1500)
-                screen = if (onboardingComplete) Screen.HOME else Screen.ONBOARDING_1
-            }
-
-            Screen.PROCESSING -> {
-                val bank = assessmentBank
-                if (bank == null) {
-                    processingError = assessmentBankResult.exceptionOrNull()?.message
-                        ?: "Item bank tidak dapat dimuat."
-                    screen = Screen.ASSESSMENT_INTRO
-                    return@LaunchedEffect
-                }
-
-                try {
-                    val result = withContext(Dispatchers.Default) {
-                        val creativeScorer = CreativeScorer.fromAssets(context)
-                        AssessmentScoringEngine(creativeScorer).score(
-                            bank = bank,
-                            responses = pendingResponses
-                        )
-                    }
-
-                    AssessmentStorage.append(prefs, result)
-                    history = AssessmentStorage.loadHistory(prefs)
-                    assessmentComplete = history.isNotEmpty()
-                    selectedResultTimestamp = result.completedAt
-                    prefs.edit().putBoolean("assessment_complete", true).apply()
-                    processingError = null
-                    delay(450)
-                    screen = Screen.RESULT_OVERVIEW
-                    activeTab = MainTab.ASSESSMENT
-                } catch (error: Throwable) {
-                    processingError = error.message ?: error::class.java.simpleName
-                    screen = Screen.ASSESSMENT_SESSION
-                }
-            }
-
-            else -> Unit
+        if (screen == Screen.SPLASH) {
+            delay(1500)
+            screen = if (onboardingComplete) Screen.HOME else Screen.ONBOARDING_1
         }
+    }
+
+    LaunchedEffect(
+        assessmentSessionViewModel?.completedResult?.completedAt,
+        assessmentSessionViewModel?.status,
+        assessmentSessionViewModel?.draftAvailability,
+        screen
+    ) {
+        val session = assessmentSessionViewModel
+
+        if (session == null) {
+            if (screen == Screen.PROCESSING) screen = Screen.ASSESSMENT_INTRO
+            return@LaunchedEffect
+        }
+
+        session.completedResult?.let { result ->
+            history = AssessmentStorage.loadHistory(prefs)
+            assessmentComplete = history.isNotEmpty()
+            selectedResultTimestamp = result.completedAt
+            activeTab = MainTab.ASSESSMENT
+            screen = Screen.RESULT_OVERVIEW
+            session.consumeCompletedResult()
+            return@LaunchedEffect
+        }
+
+        if (screen == Screen.ASSESSMENT_SESSION &&
+            session.status == AssessmentSessionStatus.IDLE
+        ) {
+            screen = Screen.ASSESSMENT_INTRO
+            return@LaunchedEffect
+        }
+
+        if (screen == Screen.PROCESSING) {
+            when (session.status) {
+                AssessmentSessionStatus.IN_PROGRESS -> session.submitAssessment()
+                AssessmentSessionStatus.ERROR -> screen = Screen.ASSESSMENT_SESSION
+                AssessmentSessionStatus.IDLE -> screen = Screen.ASSESSMENT_INTRO
+                AssessmentSessionStatus.PROCESSING,
+                AssessmentSessionStatus.COMPLETED -> Unit
+            }
+        }
+    }
+
+    DisposableEffect(context, assessmentSessionViewModel) {
+        val lifecycleOwner = context as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                assessmentSessionViewModel?.forceSaveDraft(synchronous = true)
+            }
+        }
+
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
     }
 
     fun navigate(target: Screen) {
@@ -258,10 +284,18 @@ fun PotentiaApp() {
     }
 
     fun startAssessment() {
-        currentQuestionIndex = 0
-        assessmentResponses.clear()
-        pendingResponses = emptyMap()
-        processingError = null
+        assessmentSessionViewModel?.startNewAssessment()
+        navigate(Screen.ASSESSMENT_SESSION)
+    }
+
+    fun resumeAssessment() {
+        if (assessmentSessionViewModel?.resumeAssessment() == true) {
+            navigate(Screen.ASSESSMENT_SESSION)
+        }
+    }
+
+    fun restartAssessment() {
+        assessmentSessionViewModel?.restartAssessment()
         navigate(Screen.ASSESSMENT_SESSION)
     }
 
@@ -330,45 +364,63 @@ fun PotentiaApp() {
                         onHistory = { navigate(Screen.HISTORY) }
                     )
                     Screen.ASSESSMENT_INTRO -> AssessmentIntroScreen(
+                        draftAvailability = assessmentSessionViewModel?.draftAvailability
+                            ?: AssessmentDraftAvailability.NONE,
+                        draftAnsweredCount = assessmentSessionViewModel?.draftAnsweredCount ?: 0,
+                        draftQuestionNumber = assessmentSessionViewModel?.draftQuestionNumber ?: 1,
                         onBack = { navigate(Screen.HOME) },
-                        onStart = { startAssessment() }
+                        onStart = { startAssessment() },
+                        onResume = { resumeAssessment() },
+                        onRestart = { restartAssessment() }
                     )
                     Screen.ASSESSMENT_SESSION -> {
                         val bank = assessmentBank
-                        if (bank == null) {
-                            AssessmentLoadErrorScreen(
-                                message = assessmentBankResult.exceptionOrNull()?.message
-                                    ?: "Item bank tidak dapat dimuat.",
-                                onBack = { navigate(Screen.ASSESSMENT_INTRO) }
-                            )
-                        } else {
-                            val items = bank.items
-                            val safeIndex = currentQuestionIndex.coerceIn(0, items.lastIndex)
-                            val item = items[safeIndex]
+                        val session = assessmentSessionViewModel
+                        val items = bank?.items.orEmpty()
 
-                            AssessmentSessionScreen(
-                                bank = bank,
-                                item = item,
-                                questionIndex = safeIndex,
-                                response = assessmentResponses[item.itemId].orEmpty(),
-                                errorMessage = processingError,
-                                onResponse = { value ->
-                                    assessmentResponses[item.itemId] = value
-                                    processingError = null
-                                },
-                                onBack = {
-                                    if (safeIndex > 0) currentQuestionIndex = safeIndex - 1
-                                    else navigate(Screen.ASSESSMENT_INTRO)
-                                },
-                                onNext = {
-                                    if (safeIndex < items.lastIndex) {
-                                        currentQuestionIndex = safeIndex + 1
-                                    } else {
-                                        pendingResponses = assessmentResponses.toMap()
-                                        screen = Screen.PROCESSING
+                        when {
+                            bank == null || session == null -> {
+                                AssessmentLoadErrorScreen(
+                                    message = assessmentBankResult.exceptionOrNull()?.message
+                                        ?: "Item bank tidak dapat dimuat.",
+                                    onBack = { navigate(Screen.ASSESSMENT_INTRO) }
+                                )
+                            }
+
+                            items.isEmpty() -> {
+                                AssessmentLoadErrorScreen(
+                                    message = "Item bank tidak memiliki item aktif.",
+                                    onBack = { navigate(Screen.ASSESSMENT_INTRO) }
+                                )
+                            }
+
+                            else -> {
+                                val safeIndex = session.currentQuestionIndex.coerceIn(0, items.lastIndex)
+                                val item = items[safeIndex]
+
+                                AssessmentSessionScreen(
+                                    bank = bank,
+                                    item = item,
+                                    questionIndex = safeIndex,
+                                    response = session.responses[item.itemId].orEmpty(),
+                                    errorMessage = session.processingError,
+                                    onResponse = { value -> session.answer(item.itemId, value) },
+                                    onBack = {
+                                        if (!session.goBack()) {
+                                            session.forceSaveDraft()
+                                            navigate(Screen.ASSESSMENT_INTRO)
+                                        }
+                                    },
+                                    onNext = {
+                                        if (safeIndex < items.lastIndex) {
+                                            session.goNext()
+                                        } else {
+                                            session.submitAssessment()
+                                            screen = Screen.PROCESSING
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                     Screen.Q_SITUATIONAL -> SituationalQuestionScreen(
@@ -1129,8 +1181,13 @@ private fun FlatExploreRow(
 
 @Composable
 private fun AssessmentIntroScreen(
+    draftAvailability: AssessmentDraftAvailability,
+    draftAnsweredCount: Int,
+    draftQuestionNumber: Int,
     onBack: () -> Unit,
-    onStart: () -> Unit
+    onStart: () -> Unit,
+    onResume: () -> Unit,
+    onRestart: () -> Unit
 ) {
     val sections = listOf(
         listOf("01", "Penalaran Logis", "10 item · ±9 mnt", "Mengenali pola, aturan, relasi, dan kesimpulan logis."),
@@ -1140,6 +1197,35 @@ private fun AssessmentIntroScreen(
         listOf("05", "Sosial", "10 item · ±10 mnt", "Merespons pernyataan dan situasi kerja sama/interpersonal."),
         listOf("06", "Praktis", "8 item · ±10 mnt", "Mengambil keputusan nyata dengan risiko, waktu, dan sumber daya.")
     )
+
+    var showRestartConfirmation by rememberSaveable { mutableStateOf(false) }
+
+    if (showRestartConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showRestartConfirmation = false },
+            title = { Text("Mulai ulang asesmen?") },
+            text = {
+                Text(
+                    "Draf asesmen yang belum selesai akan diganti dengan sesi baru. Tindakan ini tidak dapat dibatalkan."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRestartConfirmation = false
+                        onRestart()
+                    }
+                ) {
+                    Text("Mulai Ulang", color = Color(0xFFB5451B))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestartConfirmation = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 
     Column(
         Modifier
@@ -1153,11 +1239,67 @@ private fun AssessmentIntroScreen(
         Heading("Siap menjelajahi\npotensimu?", 28)
         Spacer(Modifier.height(10.dp))
         Text(
-            "47 item dalam 6 bagian, estimasi sekitar 45–55 menit. Jawabanmu disimpan selama sesi dan diproses menjadi enam indeks pilot.",
+            "47 item dalam 6 bagian, estimasi sekitar 45–55 menit. Jawaban disimpan lokal sebagai draf agar sesi dapat dilanjutkan setelah rotasi, keluar aplikasi, atau proses aplikasi dibuat ulang.",
             color = Muted,
             lineHeight = 22.sp,
             fontSize = 14.sp
         )
+
+        when (draftAvailability) {
+            AssessmentDraftAvailability.VALID -> {
+                Spacer(Modifier.height(18.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .10f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(Modifier.padding(15.dp)) {
+                        Text("Draf asesmen ditemukan", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "$draftAnsweredCount jawaban tersimpan · posisi terakhir sekitar item $draftQuestionNumber dari 47.",
+                            color = Muted,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+
+            AssessmentDraftAvailability.OUTDATED -> {
+                Spacer(Modifier.height(18.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4E2)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        "Ada draf dari versi asesmen yang berbeda. Draf lama tidak dapat dilanjutkan dengan item bank saat ini. Potentia tidak akan menghapusnya sampai kamu mengonfirmasi mulai ulang.",
+                        modifier = Modifier.padding(15.dp),
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+
+            AssessmentDraftAvailability.CORRUPT -> {
+                Spacer(Modifier.height(18.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE9E2)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        "Draf sesi lama tidak dapat dibaca dengan aman. Draf tersebut belum dihapus. Mulai ulang hanya setelah kamu siap menggantinya dengan sesi baru.",
+                        modifier = Modifier.padding(15.dp),
+                        color = Color(0xFF8A2F16),
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+
+            AssessmentDraftAvailability.NONE -> Unit
+        }
+
         Spacer(Modifier.height(24.dp))
 
         sections.forEachIndexed { index, section ->
@@ -1200,7 +1342,30 @@ private fun AssessmentIntroScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        PrimaryButton("Mulai 47 Item", onClick = onStart)
+
+        when (draftAvailability) {
+            AssessmentDraftAvailability.VALID -> {
+                PrimaryButton("Lanjutkan Asesmen", onClick = onResume)
+                Spacer(Modifier.height(10.dp))
+                GhostButton(
+                    "Mulai Ulang",
+                    onClick = { showRestartConfirmation = true }
+                )
+            }
+
+            AssessmentDraftAvailability.OUTDATED,
+            AssessmentDraftAvailability.CORRUPT -> {
+                PrimaryButton(
+                    "Mulai Ulang",
+                    onClick = { showRestartConfirmation = true }
+                )
+            }
+
+            AssessmentDraftAvailability.NONE -> {
+                PrimaryButton("Mulai 47 Item", onClick = onStart)
+            }
+        }
+
         Spacer(Modifier.height(24.dp))
     }
 }

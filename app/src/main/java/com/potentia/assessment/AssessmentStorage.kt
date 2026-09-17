@@ -23,14 +23,20 @@ object AssessmentStorage {
     fun append(
         prefs: SharedPreferences,
         result: AssessmentResult
-    ) {
+    ): Boolean {
         val updated = (loadHistory(prefs) + result)
             .sortedBy { it.completedAt }
             .takeLast(MAX_HISTORY)
 
         val array = JSONArray()
         updated.forEach { array.put(toJson(it)) }
-        prefs.edit().putString(KEY_HISTORY, array.toString()).apply()
+
+        // Completion is a durable boundary: only clear an assessment draft
+        // after this synchronous persistence succeeds. Call this off the UI thread.
+        return prefs.edit()
+            .putString(KEY_HISTORY, array.toString())
+            .putBoolean("assessment_complete", true)
+            .commit()
     }
 
     fun clear(prefs: SharedPreferences) {

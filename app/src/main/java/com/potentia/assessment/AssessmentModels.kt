@@ -46,6 +46,14 @@ data class AssessmentBank(
         sections.firstOrNull { it.id == dimensionId }
 }
 
+data class AssessmentDraft(
+    val assessmentVersion: String,
+    val totalItems: Int,
+    val startedAt: Long,
+    val currentQuestionIndex: Int,
+    val responses: Map<String, String>
+)
+
 data class DimensionResult(
     val id: String,
     val score: Double?,

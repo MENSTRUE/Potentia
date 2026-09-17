@@ -1,10 +1,13 @@
 package com.potentia.assessment
 
+import com.potentia.ai.CreativeScoreResult
 import com.potentia.ai.CreativeScorer
 
 class AssessmentScoringEngine(
-    private val creativeScorer: CreativeScorer
+    private val creativeScore: (task: String, text: String) -> CreativeScoreResult
 ) {
+    constructor(creativeScorer: CreativeScorer) : this(creativeScorer::score)
+
     fun score(
         bank: AssessmentBank,
         responses: Map<String, String>
@@ -98,9 +101,9 @@ class AssessmentScoringEngine(
         if (pieces.isEmpty()) return 0.0 to true
 
         val results = pieces.map { answer ->
-            creativeScorer.score(
-                task = item.itemId.lowercase(),
-                text = answer
+            creativeScore(
+                item.itemId.lowercase(),
+                answer
             )
         }
 
