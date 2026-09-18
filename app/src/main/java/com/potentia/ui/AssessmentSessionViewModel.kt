@@ -17,6 +17,9 @@ import com.potentia.assessment.AssessmentDraftStorage
 import com.potentia.assessment.AssessmentResult
 import com.potentia.assessment.AssessmentScoringEngine
 import com.potentia.assessment.AssessmentStorage
+import com.potentia.research.PilotItemResponse
+import com.potentia.research.PilotResearchStorage
+import com.potentia.research.PilotSessionRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,6 +56,15 @@ internal class AssessmentSessionViewModel(
         private set
 
     var startedAt by mutableLongStateOf(0L)
+        private set
+
+    var sessionId by mutableStateOf("")
+        private set
+
+    var researchEligibleAtStart by mutableStateOf(false)
+        private set
+
+    var researchConsentVersionAtStart by mutableStateOf<String?>(null)
         private set
 
     var status by mutableStateOf(AssessmentSessionStatus.IDLE)
@@ -96,6 +108,10 @@ internal class AssessmentSessionViewModel(
         responses = emptyMap()
         currentQuestionIndex = 0
         startedAt = System.currentTimeMillis()
+        sessionId = PilotResearchStorage.newSessionId()
+        val consent = PilotResearchStorage.readConsentState(prefs)
+        researchEligibleAtStart = consent.researchEnabled
+        researchConsentVersionAtStart = if (consent.researchEnabled) consent.consentVersion else null
         processingError = null
         completedResult = null
         status = AssessmentSessionStatus.IN_PROGRESS
@@ -184,6 +200,10 @@ internal class AssessmentSessionViewModel(
         status = AssessmentSessionStatus.PROCESSING
 
         val responseSnapshot = responses.toMap()
+        val startedAtSnapshot = startedAt
+        val sessionIdSnapshot = sessionId
+        val researchEligibleSnapshot = researchEligibleAtStart
+        val consentVersionSnapshot = researchConsentVersionAtStart
 
         viewModelScope.launch {
             try {
@@ -193,6 +213,46 @@ internal class AssessmentSessionViewModel(
                         bank = bank,
                         responses = responseSnapshot
                     )
+                }
+
+                val currentConsent = PilotResearchStorage.readConsentState(prefs)
+                val shouldCollectPilotData = researchEligibleSnapshot &&
+                    currentConsent.researchEnabled &&
+                    consentVersionSnapshot != null &&
+                    currentConsent.consentVersion == consentVersionSnapshot &&
+                    !currentConsent.participantId.isNullOrBlank()
+
+                if (shouldCollectPilotData) {
+                    val participantId = requireNotNull(currentConsent.participantId)
+                    val pilotRecord = PilotSessionRecord(
+                        participantId = participantId,
+                        sessionId = sessionIdSnapshot,
+                        consentVersion = requireNotNull(consentVersionSnapshot),
+                        appVersion = appVersionName(),
+                        startedAt = startedAtSnapshot,
+                        completedAt = result.completedAt,
+                        assessmentVersion = result.assessmentVersion,
+                        scoringVersion = result.scoringVersion,
+                        language = bank.language,
+                        responses = bank.items.mapNotNull { item ->
+                            responseSnapshot[item.itemId]?.let { response ->
+                                PilotItemResponse(
+                                    itemId = item.itemId,
+                                    dimensionId = item.dimensionId,
+                                    responseType = item.responseType,
+                                    response = response
+                                )
+                            }
+                        },
+                        result = result
+                    )
+
+                    val pilotPersisted = withContext(Dispatchers.IO) {
+                        PilotResearchStorage.upsertSession(prefs, pilotRecord)
+                    }
+                    if (!pilotPersisted) {
+                        throw IOException("Data pilot gagal disimpan secara lokal.")
+                    }
                 }
 
                 val persisted = withContext(Dispatchers.IO) {
@@ -268,6 +328,9 @@ internal class AssessmentSessionViewModel(
                         responses = draft.responses
                         currentQuestionIndex = draft.currentQuestionIndex
                         startedAt = draft.startedAt
+                        sessionId = draft.sessionId.ifBlank { "S-LEGACY-${draft.startedAt}" }
+                        researchEligibleAtStart = draft.researchEligibleAtStart
+                        researchConsentVersionAtStart = draft.researchConsentVersionAtStart
                         status = AssessmentSessionStatus.IN_PROGRESS
                     }
                 }
@@ -304,9 +367,20 @@ internal class AssessmentSessionViewModel(
                 0,
                 bank.items.lastIndex.coerceAtLeast(0)
             ),
-            responses = responses.toMap()
+            responses = responses.toMap(),
+            sessionId = sessionId,
+            researchEligibleAtStart = researchEligibleAtStart,
+            researchConsentVersionAtStart = researchConsentVersionAtStart
         )
     }
+
+    private fun appVersionName(): String = runCatching {
+        applicationContext.packageManager
+            .getPackageInfo(applicationContext.packageName, 0)
+            .versionName
+            .orEmpty()
+            .ifBlank { "unknown" }
+    }.getOrDefault("unknown")
 
     override fun onCleared() {
         draftSaveJob?.cancel()

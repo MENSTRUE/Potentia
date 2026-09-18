@@ -55,6 +55,7 @@ import com.potentia.assessment.*
 import com.potentia.growth.*
 import com.potentia.reminder.WeeklyReminderPolicy
 import com.potentia.reminder.WeeklyReminderScheduler
+import com.potentia.research.*
 import com.potentia.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -68,11 +69,13 @@ import java.util.Locale
 private enum class Screen {
     SPLASH,
     ONBOARDING_1, ONBOARDING_2, ONBOARDING_3,
-    HOME, ASSESSMENT_INTRO, ASSESSMENT_SESSION,
+    HOME, ASSESSMENT_INTRO, ASSESSMENT_SESSION, PILOT_CONSENT,
     PROCESSING, RESULT_OVERVIEW, POTENTIAL_DETAIL, POTENTIAL_MAP,
     GROWTH, HISTORY, COMPARISON, DIMENSION_LIBRARY,
-    PROFILE, SETTINGS, ABOUT
+    PROFILE, SETTINGS, PILOT_DATA, ABOUT
 }
+
+private enum class PilotConsentPurpose { START_ASSESSMENT, RESTART_ASSESSMENT, SETTINGS }
 
 private enum class MainTab { HOME, ASSESSMENT, GROWTH, PROFILE }
 
@@ -140,7 +143,7 @@ private fun formatAssessmentDate(timestamp: Long): String =
 private val DarkScreens = setOf(Screen.SPLASH, Screen.PROCESSING)
 private val NoBottomBarScreens = setOf(
     Screen.SPLASH, Screen.ONBOARDING_1, Screen.ONBOARDING_2, Screen.ONBOARDING_3,
-    Screen.ASSESSMENT_SESSION, Screen.PROCESSING
+    Screen.ASSESSMENT_SESSION, Screen.PILOT_CONSENT, Screen.PROCESSING
 )
 
 @Composable
@@ -163,6 +166,15 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
     }
     var developmentRecommendationsEnabled by remember {
         mutableStateOf(prefs.getBoolean("development_recommendations", true))
+    }
+    var pilotConsentState by remember {
+        mutableStateOf(PilotResearchStorage.readConsentState(prefs))
+    }
+    var pilotSessions by remember {
+        mutableStateOf(PilotResearchStorage.loadSessions(prefs))
+    }
+    var pilotConsentPurpose by rememberSaveable {
+        mutableStateOf(PilotConsentPurpose.START_ASSESSMENT)
     }
     var selectedResultTimestamp by rememberSaveable {
         mutableStateOf(history.lastOrNull()?.completedAt)
@@ -245,6 +257,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
 
         session.completedResult?.let { result ->
             history = AssessmentStorage.loadHistory(prefs)
+            pilotSessions = PilotResearchStorage.loadSessions(prefs)
             assessmentComplete = history.isNotEmpty()
             selectedResultTimestamp = result.completedAt
             activeTab = MainTab.ASSESSMENT
@@ -287,11 +300,11 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
         screen = target
         activeTab = when (target) {
             Screen.HOME, Screen.DIMENSION_LIBRARY -> MainTab.HOME
-            Screen.ASSESSMENT_INTRO, Screen.ASSESSMENT_SESSION, Screen.RESULT_OVERVIEW,
-            Screen.POTENTIAL_DETAIL, Screen.POTENTIAL_MAP -> MainTab.ASSESSMENT
+            Screen.ASSESSMENT_INTRO, Screen.ASSESSMENT_SESSION, Screen.PILOT_CONSENT,
+            Screen.RESULT_OVERVIEW, Screen.POTENTIAL_DETAIL, Screen.POTENTIAL_MAP -> MainTab.ASSESSMENT
             Screen.GROWTH -> MainTab.GROWTH
             Screen.HISTORY, Screen.COMPARISON, Screen.PROFILE,
-            Screen.SETTINGS, Screen.ABOUT -> MainTab.PROFILE
+            Screen.SETTINGS, Screen.PILOT_DATA, Screen.ABOUT -> MainTab.PROFILE
             else -> activeTab
         }
     }
@@ -301,20 +314,54 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
         navigate(Screen.HOME)
     }
 
-    fun startAssessment() {
+    fun startAssessmentNow() {
         assessmentSessionViewModel?.startNewAssessment()
         navigate(Screen.ASSESSMENT_SESSION)
+    }
+
+    fun restartAssessment() {
+        assessmentSessionViewModel?.restartAssessment()
+        navigate(Screen.ASSESSMENT_SESSION)
+    }
+
+    fun requestStartAssessment() {
+        pilotConsentState = PilotResearchStorage.readConsentState(prefs)
+        if (pilotConsentState.requiresDecision) {
+            pilotConsentPurpose = PilotConsentPurpose.START_ASSESSMENT
+            navigate(Screen.PILOT_CONSENT)
+        } else {
+            startAssessmentNow()
+        }
+    }
+
+    fun requestRestartAssessment() {
+        pilotConsentState = PilotResearchStorage.readConsentState(prefs)
+        if (pilotConsentState.requiresDecision) {
+            pilotConsentPurpose = PilotConsentPurpose.RESTART_ASSESSMENT
+            navigate(Screen.PILOT_CONSENT)
+        } else {
+            restartAssessment()
+        }
+    }
+
+    fun applyPilotChoice(optIn: Boolean) {
+        pilotConsentState = if (optIn) {
+            PilotResearchStorage.optIn(prefs)
+        } else {
+            PilotResearchStorage.choosePersonalOnly(prefs)
+        }
+
+        when (pilotConsentPurpose) {
+            PilotConsentPurpose.START_ASSESSMENT -> startAssessmentNow()
+            PilotConsentPurpose.RESTART_ASSESSMENT -> restartAssessment()
+            PilotConsentPurpose.SETTINGS -> navigate(Screen.PILOT_DATA)
+        }
     }
 
     fun resumeAssessment() {
         if (assessmentSessionViewModel?.resumeAssessment() == true) {
             navigate(Screen.ASSESSMENT_SESSION)
         }
-    }
-
-    fun restartAssessment() {
-        assessmentSessionViewModel?.restartAssessment()
-        navigate(Screen.ASSESSMENT_SESSION)
     }
 
     fun openResult(timestamp: Long) {
@@ -386,10 +433,24 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                             ?: AssessmentDraftAvailability.NONE,
                         draftAnsweredCount = assessmentSessionViewModel?.draftAnsweredCount ?: 0,
                         draftQuestionNumber = assessmentSessionViewModel?.draftQuestionNumber ?: 1,
+                        pilotConsentState = pilotConsentState,
                         onBack = { navigate(Screen.HOME) },
-                        onStart = { startAssessment() },
+                        onStart = { requestStartAssessment() },
                         onResume = { resumeAssessment() },
-                        onRestart = { restartAssessment() }
+                        onRestart = { requestRestartAssessment() }
+                    )
+                    Screen.PILOT_CONSENT -> PilotConsentScreen(
+                        consentState = pilotConsentState,
+                        purpose = pilotConsentPurpose,
+                        onBack = {
+                            if (pilotConsentPurpose == PilotConsentPurpose.SETTINGS) {
+                                navigate(Screen.PILOT_DATA)
+                            } else {
+                                navigate(Screen.ASSESSMENT_INTRO)
+                            }
+                        },
+                        onOptIn = { applyPilotChoice(true) },
+                        onPersonalOnly = { applyPilotChoice(false) }
                     )
                     Screen.ASSESSMENT_SESSION -> {
                         val bank = assessmentBank
@@ -483,6 +544,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         onComparison = { navigate(Screen.COMPARISON) },
                         onResult = { navigate(Screen.RESULT_OVERVIEW) },
                         onSettings = { navigate(Screen.SETTINGS) },
+                        onPrivacyData = { navigate(Screen.PILOT_DATA) },
                         onAbout = { navigate(Screen.ABOUT) }
                     )
                     Screen.SETTINGS -> SettingsScreen(
@@ -494,12 +556,30 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         },
                         onBack = { navigate(Screen.PROFILE) },
                         onAbout = { navigate(Screen.ABOUT) },
+                        onPilotData = { navigate(Screen.PILOT_DATA) },
                         onDeleteHistory = {
                             AssessmentStorage.clear(prefs)
                             GrowthStorage.clear(prefs)
                             history = emptyList()
                             assessmentComplete = false
                             selectedResultTimestamp = null
+                        }
+                    )
+                    Screen.PILOT_DATA -> PilotDataScreen(
+                        consentState = pilotConsentState,
+                        sessions = pilotSessions,
+                        onBack = { navigate(Screen.PROFILE) },
+                        onChangeParticipation = {
+                            pilotConsentPurpose = PilotConsentPurpose.SETTINGS
+                            navigate(Screen.PILOT_CONSENT)
+                        },
+                        onWithdraw = {
+                            pilotConsentState = PilotResearchStorage.choosePersonalOnly(prefs)
+                        },
+                        onDeletePilotData = {
+                            PilotResearchStorage.clearPilotDataAndWithdraw(prefs)
+                            pilotConsentState = PilotResearchStorage.readConsentState(prefs)
+                            pilotSessions = emptyList()
                         }
                     )
                     Screen.ABOUT -> AboutScreen(
@@ -1173,6 +1253,7 @@ private fun AssessmentIntroScreen(
     draftAvailability: AssessmentDraftAvailability,
     draftAnsweredCount: Int,
     draftQuestionNumber: Int,
+    pilotConsentState: PilotConsentState,
     onBack: () -> Unit,
     onStart: () -> Unit,
     onResume: () -> Unit,
@@ -1330,6 +1411,28 @@ private fun AssessmentIntroScreen(
                 lineHeight = 18.sp
             )
         }
+        Spacer(Modifier.height(10.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Stone),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            val modeText = when {
+                pilotConsentState.requiresDecision ->
+                    "Sebelum memulai sesi baru, kamu akan memilih apakah ingin berkontribusi data pilot pseudonim atau menggunakan mode pribadi."
+                pilotConsentState.researchEnabled ->
+                    "Mode pilot pseudonim aktif untuk sesi baru. Respons per-item dapat disimpan lokal untuk ekspor penelitian manual."
+                else ->
+                    "Mode pribadi aktif. Respons per-item tidak dipertahankan setelah scoring selesai."
+            }
+            Text(
+                modeText,
+                modifier = Modifier.padding(15.dp),
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+        }
         Spacer(Modifier.height(20.dp))
 
         when (draftAvailability) {
@@ -1355,6 +1458,338 @@ private fun AssessmentIntroScreen(
             }
         }
 
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun PilotConsentScreen(
+    consentState: PilotConsentState,
+    purpose: PilotConsentPurpose,
+    onBack: () -> Unit,
+    onOptIn: () -> Unit,
+    onPersonalOnly: () -> Unit
+) {
+    var understood by rememberSaveable(consentState.mode) {
+        mutableStateOf(consentState.researchEnabled)
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 8.dp)
+    ) {
+        TopBack(onBack)
+        Spacer(Modifier.height(12.dp))
+        Overline("Pilot Penelitian · Pilihan Data")
+        Heading(
+            if (purpose == PilotConsentPurpose.SETTINGS)
+                "Partisipasi pilot penelitian"
+            else
+                "Pilih cara datamu digunakan",
+            27
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Pilihan ini tidak memengaruhi akses ke asesmen atau hasil pribadi. POTENTIA tetap dapat digunakan tanpa ikut pengumpulan data pilot.",
+            color = Muted,
+            fontSize = 14.sp,
+            lineHeight = 22.sp
+        )
+
+        Spacer(Modifier.height(22.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .10f)),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Jika ikut pilot pseudonim", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Aplikasi menyimpan lokal ID partisipan acak, ID sesi, waktu sesi, versi instrumen, respons per-item (termasuk jawaban bebas), dan hasil dimensi. Nama, email, nomor telepon, dan ID perangkat tidak dikumpulkan oleh fitur ini.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Tidak ada unggah otomatis. Data pilot hanya keluar dari perangkat jika kamu sendiri memilih ekspor/bagikan. Kamu dapat menghentikan kontribusi data baru atau menghapus data pilot lokal kapan saja.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Stone),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Jika memilih mode pribadi", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    "Hanya hasil dimensi yang disimpan sebagai riwayat lokal. Respons per-item tidak dipertahankan setelah scoring selesai dan tidak masuk ke dataset pilot.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { understood = !understood }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Checkbox(
+                checked = understood,
+                onCheckedChange = { understood = it }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Saya memahami bahwa ini adalah pilot/research, bukan tes psikologis tervalidasi; jawaban bebas dapat tersimpan lokal jika saya memilih ikut pilot; dan persetujuan ini tidak menggantikan persetujuan etik/institusional yang mungkin diperlukan untuk penelitian formal.",
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onOptIn,
+            enabled = understood,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Charcoal,
+                contentColor = Ivory,
+                disabledContainerColor = Stone,
+                disabledContentColor = Muted
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                if (consentState.researchEnabled) "Tetap Ikut Pilot Pseudonim" else "Ikut Pilot Pseudonim",
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        GhostButton(
+            if (purpose == PilotConsentPurpose.SETTINGS)
+                "Gunakan Mode Pribadi"
+            else
+                "Lanjut Mode Pribadi",
+            onClick = onPersonalOnly
+        )
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun PilotDataScreen(
+    consentState: PilotConsentState,
+    sessions: List<PilotSessionRecord>,
+    onBack: () -> Unit,
+    onChangeParticipation: () -> Unit,
+    onWithdraw: () -> Unit,
+    onDeletePilotData: () -> Unit
+) {
+    val context = LocalContext.current
+    var showWithdrawDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
+
+    if (showWithdrawDialog) {
+        AlertDialog(
+            onDismissRequest = { showWithdrawDialog = false },
+            title = { Text("Berhenti berkontribusi data baru?") },
+            text = {
+                Text(
+                    "Sesi asesmen baru tidak akan disimpan sebagai data pilot. Data pilot yang sudah tersimpan lokal tidak dihapus; kamu dapat menghapusnya secara terpisah."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onWithdraw()
+                        showWithdrawDialog = false
+                    }
+                ) { Text("Berhenti", color = Color(0xFFB5451B)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWithdrawDialog = false }) { Text("Batal") }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Hapus semua data pilot lokal?") },
+            text = {
+                Text(
+                    "ID partisipan acak/pseudonim dan seluruh rekaman respons pilot di perangkat ini akan dihapus. Riwayat skor pribadi tetap dipertahankan. Tindakan ini tidak dapat dibatalkan."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeletePilotData()
+                        showDeleteDialog = false
+                    }
+                ) { Text("Hapus Data Pilot", color = Color(0xFFB5451B)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Batal") }
+            }
+        )
+    }
+
+    pendingExport?.let { format ->
+        AlertDialog(
+            onDismissRequest = { pendingExport = null },
+            title = { Text("Ekspor data pilot?") },
+            text = {
+                Text(
+                    "Ekspor ini berisi respons per-item dan dapat memuat jawaban bebas. Bagikan hanya ke tujuan penelitian yang kamu percaya. POTENTIA tidak mengunggahnya otomatis."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (format == "json") {
+                            PilotExportShare.shareJson(context, consentState, sessions)
+                        } else {
+                            PilotExportShare.shareCsv(context, sessions)
+                        }
+                        pendingExport = null
+                    }
+                ) { Text("Ekspor") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingExport = null }) { Text("Batal") }
+            }
+        )
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 8.dp)
+    ) {
+        TopBack(onBack)
+        Spacer(Modifier.height(10.dp))
+        Heading("Privasi & Data Pilot", 27)
+        Text(
+            "Kontrol partisipasi pilot dan data mentah yang tersimpan lokal di perangkat ini.",
+            color = Muted,
+            fontSize = 13.sp,
+            lineHeight = 19.sp
+        )
+
+        Spacer(Modifier.height(22.dp))
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (consentState.researchEnabled) Gold.copy(alpha = .10f) else Color.White
+            ),
+            border = BorderStroke(1.dp, if (consentState.researchEnabled) Gold.copy(alpha = .35f) else Stone),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Status partisipasi", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    when {
+                        consentState.requiresDecision -> "Perlu keputusan/persetujuan baru"
+                        consentState.researchEnabled -> "Pilot pseudonim aktif"
+                        else -> "Mode pribadi"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+                consentState.participantId?.let { participantId ->
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "ID partisipan: $participantId",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${sessions.size} sesi pilot tersimpan lokal",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        if (consentState.researchEnabled) {
+            GhostButton("Ubah Persetujuan", onClick = onChangeParticipation)
+            Spacer(Modifier.height(10.dp))
+            TextButton(
+                onClick = { showWithdrawDialog = true },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("Berhenti kontribusi data baru", color = Color(0xFFB5451B))
+            }
+        } else {
+            PrimaryButton("Atur Partisipasi Pilot", onClick = onChangeParticipation)
+        }
+
+        Spacer(Modifier.height(26.dp))
+        SectionLabel("Ekspor penelitian")
+        SettingsRow(
+            "Ekspor JSON lengkap",
+            info = if (sessions.isEmpty()) "Kosong" else "${sessions.size} sesi",
+            onClick = { if (sessions.isNotEmpty()) pendingExport = "json" }
+        )
+        SettingsRow(
+            "Ekspor CSV respons item",
+            info = if (sessions.isEmpty()) "Kosong" else "Long format",
+            onClick = { if (sessions.isNotEmpty()) pendingExport = "csv" }
+        )
+
+        Spacer(Modifier.height(22.dp))
+        SectionLabel("Kontrol data")
+        SettingsRow(
+            "Hapus data pilot lokal",
+            info = if (sessions.isEmpty() && consentState.participantId == null) "Kosong" else null,
+            danger = true,
+            onClick = {
+                if (sessions.isNotEmpty() || consentState.participantId != null) {
+                    showDeleteDialog = true
+                }
+            }
+        )
+
+        Spacer(Modifier.height(22.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Stone),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                "Data pilot tidak dikirim otomatis dan aplikasi tidak meminta izin INTERNET. Fitur persetujuan ini membantu transparansi di aplikasi, tetapi bukan pengganti telaah etik, informed-consent resmi, atau prosedur institusi jika POTENTIA digunakan dalam penelitian formal.",
+                modifier = Modifier.padding(16.dp),
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+        }
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -2723,6 +3158,7 @@ private fun ProfileScreen(
     onComparison: () -> Unit,
     onResult: () -> Unit,
     onSettings: () -> Unit,
+    onPrivacyData: () -> Unit,
     onAbout: () -> Unit
 ) {
     Column(
@@ -2763,7 +3199,7 @@ private fun ProfileScreen(
         Spacer(Modifier.height(24.dp))
         SectionLabel("Preferensi & Data")
         SettingsRow("Pengaturan", onClick = onSettings)
-        SettingsRow("Privasi & Data", onClick = onSettings)
+        SettingsRow("Privasi & Data", onClick = onPrivacyData)
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Lainnya")
@@ -2805,6 +3241,7 @@ private fun SettingsScreen(
     onRecommendationsEnabledChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onAbout: () -> Unit,
+    onPilotData: () -> Unit,
     onDeleteHistory: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2852,7 +3289,7 @@ private fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Hapus riwayat asesmen?") },
-            text = { Text("Semua hasil asesmen yang tersimpan lokal akan dihapus. Tindakan ini tidak dapat dibatalkan.") },
+            text = { Text("Riwayat skor pribadi dan progres Tumbuh akan dihapus. Data pilot mentah, jika ada, tidak ikut terhapus dan dikelola terpisah melalui Privasi & Data. Tindakan ini tidak dapat dibatalkan.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -2904,6 +3341,10 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Data")
+        SettingsRow(
+            "Data pilot penelitian",
+            onClick = onPilotData
+        )
         SettingsRow(
             "Ekspor data saya",
             info = if (history.isEmpty()) "Kosong" else "${history.size} asesmen",
@@ -2980,7 +3421,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         )
         ArticleSection(
             "Privasi data",
-            "Riwayat hasil asesmen disimpan lokal di perangkat menggunakan SharedPreferences. Jawaban per-item tidak dipertahankan setelah scoring selesai. Model Kreatif berjalan on-device dan belum ada sinkronisasi server."
+            "Riwayat hasil asesmen disimpan lokal di perangkat. Dalam mode pribadi, jawaban per-item tidak dipertahankan setelah scoring selesai. Jika kamu secara eksplisit memilih ikut pilot penelitian, respons per-item (termasuk jawaban bebas) disimpan lokal dengan ID partisipan acak/pseudonim untuk ekspor manual. Tidak ada unggah otomatis ke server. Model Kreatif tetap berjalan on-device."
         )
 
         Card(

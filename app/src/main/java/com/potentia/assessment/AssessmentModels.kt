@@ -51,7 +51,10 @@ data class AssessmentDraft(
     val totalItems: Int,
     val startedAt: Long,
     val currentQuestionIndex: Int,
-    val responses: Map<String, String>
+    val responses: Map<String, String>,
+    val sessionId: String = "",
+    val researchEligibleAtStart: Boolean = false,
+    val researchConsentVersionAtStart: String? = null
 )
 
 data class DimensionResult(

@@ -63,7 +63,10 @@ class CoreAssessmentInstrumentedTest {
             responses = mapOf(
                 "LOG_001" to "B",
                 "CRE_001" to "contoh jawaban kreatif"
-            )
+            ),
+            sessionId = "S-test-draft",
+            researchEligibleAtStart = true,
+            researchConsentVersionAtStart = "potentia-pilot-consent-v1"
         )
 
         assertTrue(AssessmentDraftStorage.save(prefs, draft, synchronous = true))
@@ -76,4 +79,34 @@ class CoreAssessmentInstrumentedTest {
         assertTrue(AssessmentDraftStorage.clear(prefs, synchronous = true))
         assertTrue(AssessmentDraftStorage.read(prefs) is AssessmentDraftStorage.ReadResult.None)
     }
+    @Test
+    fun legacyDraftSchemaOneStillLoadsAsPersonalSession() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences(
+            "potentia_test_legacy_assessment_draft",
+            android.content.Context.MODE_PRIVATE
+        )
+        prefs.edit().clear().commit()
+        prefs.edit().putString(
+            "assessment_draft_v1",
+            """{
+              "schemaVersion":1,
+              "assessmentVersion":"potentia-pilot-v1.1",
+              "totalItems":47,
+              "startedAt":123456789,
+              "currentQuestionIndex":3,
+              "responses":{"LOG_001":"B"}
+            }""".trimIndent()
+        ).commit()
+
+        val loaded = AssessmentDraftStorage.read(prefs)
+        assertTrue(loaded is AssessmentDraftStorage.ReadResult.Success)
+        loaded as AssessmentDraftStorage.ReadResult.Success
+        assertFalse(loaded.draft.researchEligibleAtStart)
+        assertTrue(loaded.draft.sessionId.startsWith("S-LEGACY-"))
+        assertEquals("B", loaded.draft.responses["LOG_001"])
+
+        prefs.edit().clear().commit()
+    }
+
 }

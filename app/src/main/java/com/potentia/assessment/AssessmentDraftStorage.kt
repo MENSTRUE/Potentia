@@ -17,7 +17,8 @@ object AssessmentDraftStorage {
 
         return runCatching {
             val json = JSONObject(raw)
-            require(json.optInt("schemaVersion", -1) == 1) {
+            val schemaVersion = json.optInt("schemaVersion", -1)
+            require(schemaVersion == 1 || schemaVersion == 2) {
                 "Unsupported assessment draft schema."
             }
             val responsesJson = json.getJSONObject("responses")
@@ -29,12 +30,28 @@ object AssessmentDraftStorage {
                 responses[key] = responsesJson.getString(key)
             }
 
+            val startedAt = json.getLong("startedAt")
             AssessmentDraft(
                 assessmentVersion = json.getString("assessmentVersion"),
                 totalItems = json.getInt("totalItems"),
-                startedAt = json.getLong("startedAt"),
+                startedAt = startedAt,
                 currentQuestionIndex = json.getInt("currentQuestionIndex"),
-                responses = responses
+                responses = responses,
+                sessionId = if (schemaVersion >= 2) {
+                    json.optString("sessionId", "").ifBlank { "S-LEGACY-$startedAt" }
+                } else {
+                    "S-LEGACY-$startedAt"
+                },
+                researchEligibleAtStart = if (schemaVersion >= 2) {
+                    json.optBoolean("researchEligibleAtStart", false)
+                } else {
+                    false
+                },
+                researchConsentVersionAtStart = if (schemaVersion >= 2 && !json.isNull("researchConsentVersionAtStart")) {
+                    json.optString("researchConsentVersionAtStart", null)
+                } else {
+                    null
+                }
             )
         }.fold(
             onSuccess = { ReadResult.Success(it) },
@@ -56,12 +73,19 @@ object AssessmentDraftStorage {
         }
 
         val root = JSONObject().apply {
-            put("schemaVersion", 1)
+            put("schemaVersion", 2)
             put("assessmentVersion", draft.assessmentVersion)
             put("totalItems", draft.totalItems)
             put("startedAt", draft.startedAt)
             put("currentQuestionIndex", draft.currentQuestionIndex)
             put("responses", responses)
+            put("sessionId", draft.sessionId)
+            put("researchEligibleAtStart", draft.researchEligibleAtStart)
+            if (draft.researchConsentVersionAtStart == null) {
+                put("researchConsentVersionAtStart", JSONObject.NULL)
+            } else {
+                put("researchConsentVersionAtStart", draft.researchConsentVersionAtStart)
+            }
         }
 
         val editor = prefs.edit().putString(KEY_DRAFT, root.toString())
