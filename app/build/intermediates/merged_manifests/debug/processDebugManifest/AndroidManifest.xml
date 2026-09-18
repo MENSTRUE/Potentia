@@ -21,7 +21,7 @@
     <uses-permission android:name="com.potentia.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:debuggable="true"
         android:extractNativeLibs="false"
@@ -29,6 +29,16 @@
         android:supportsRtl="true"
         android:testOnly="true"
         android:theme="@style/Theme.Potentia" >
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.potentia.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name="com.potentia.MainActivity"
             android:exported="true"

@@ -1,6 +1,10 @@
 [
     {
-        "merged": "com.potentia.app-debug-57:/drawable_ic_notification_potentia.xml.flat",
-        "source": "com.potentia.app-main-59:/drawable/ic_notification_potentia.xml"
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\9.0-milestone-1\\com.potentia.app-debug-57:\\drawable_ic_notification_potentia.xml.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\9.0-milestone-1\\com.potentia.app-main-59:\\drawable\\ic_notification_potentia.xml"
+    },
+    {
+        "merged": "com.potentia.app-debug-57:/xml_file_paths.xml.flat",
+        "source": "com.potentia.app-main-59:/xml/file_paths.xml"
     }
 ]
