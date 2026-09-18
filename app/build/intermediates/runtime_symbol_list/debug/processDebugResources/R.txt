@@ -15,6 +15,10 @@ int attr nestedScrollViewStyle 0x7f01000d
 int attr queryPatterns 0x7f01000e
 int attr shortcutMatchRequired 0x7f01000f
 int attr ttcIndex 0x7f010010
+int bool enable_system_alarm_service_default 0x7f0b0000
+int bool enable_system_foreground_service_default 0x7f0b0001
+int bool enable_system_job_service_default 0x7f0b0002
+int bool workmanager_test_configuration 0x7f0b0003
 int color androidx_core_ripple_material_light 0x7f020000
 int color androidx_core_secondary_text_default_material_light 0x7f020001
 int color call_notification_answer_color 0x7f020002
@@ -51,6 +55,7 @@ int drawable ic_call_answer_video 0x7f040002
 int drawable ic_call_answer_video_low 0x7f040003
 int drawable ic_call_decline 0x7f040004
 int drawable ic_call_decline_low 0x7f040005
+int drawable ic_notification_potentia 0x7f040013
 int drawable notification_action_background 0x7f040006
 int drawable notification_bg 0x7f040007
 int drawable notification_bg_low 0x7f040008

@@ -1,10 +1,14 @@
 package com.potentia.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.BitmapFactory
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -49,6 +53,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.potentia.assessment.*
 import com.potentia.growth.*
+import com.potentia.reminder.WeeklyReminderPolicy
+import com.potentia.reminder.WeeklyReminderScheduler
 import com.potentia.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -63,7 +69,6 @@ private enum class Screen {
     SPLASH,
     ONBOARDING_1, ONBOARDING_2, ONBOARDING_3,
     HOME, ASSESSMENT_INTRO, ASSESSMENT_SESSION,
-    Q_SITUATIONAL, Q_LOGIC, Q_PATTERN, Q_SPATIAL, Q_CREATIVE, Q_REFLECTION,
     PROCESSING, RESULT_OVERVIEW, POTENTIAL_DETAIL, POTENTIAL_MAP,
     GROWTH, HISTORY, COMPARISON, DIMENSION_LIBRARY,
     PROFILE, SETTINGS, ABOUT
@@ -135,12 +140,11 @@ private fun formatAssessmentDate(timestamp: Long): String =
 private val DarkScreens = setOf(Screen.SPLASH, Screen.PROCESSING)
 private val NoBottomBarScreens = setOf(
     Screen.SPLASH, Screen.ONBOARDING_1, Screen.ONBOARDING_2, Screen.ONBOARDING_3,
-    Screen.ASSESSMENT_SESSION, Screen.Q_SITUATIONAL, Screen.Q_LOGIC, Screen.Q_PATTERN,
-    Screen.Q_SPATIAL, Screen.Q_CREATIVE, Screen.Q_REFLECTION, Screen.PROCESSING
+    Screen.ASSESSMENT_SESSION, Screen.PROCESSING
 )
 
 @Composable
-fun PotentiaApp() {
+fun PotentiaApp(growthOpenRequest: Int = 0) {
     val context = LocalContext.current
     val prefs = remember {
         context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE)
@@ -167,8 +171,6 @@ fun PotentiaApp() {
 
     var screen by rememberSaveable { mutableStateOf(Screen.SPLASH) }
     var activeTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
-    var selectedAnswer by remember { mutableStateOf<Int?>(null) }
-    var reflectionScore by remember { mutableStateOf<Int?>(null) }
 
     val assessmentSessionViewModel = if (assessmentBank != null) {
         val factory = remember(assessmentBank, prefs, context.applicationContext) {
@@ -185,6 +187,20 @@ fun PotentiaApp() {
 
     val onboardingComplete = remember {
         prefs.getBoolean("onboarding_complete", false)
+    }
+
+    LaunchedEffect(Unit) {
+        WeeklyReminderScheduler.sync(
+            context = context.applicationContext,
+            enabled = prefs.getBoolean("reminder_weekly", false)
+        )
+    }
+
+    LaunchedEffect(growthOpenRequest) {
+        if (growthOpenRequest > 0 && onboardingComplete) {
+            activeTab = MainTab.GROWTH
+            screen = Screen.GROWTH
+        }
     }
 
     val selectedResult = history.firstOrNull { it.completedAt == selectedResultTimestamp }
@@ -268,8 +284,6 @@ fun PotentiaApp() {
     }
 
     fun navigate(target: Screen) {
-        selectedAnswer = null
-        reflectionScore = null
         screen = target
         activeTab = when (target) {
             Screen.HOME, Screen.DIMENSION_LIBRARY -> MainTab.HOME
@@ -427,42 +441,6 @@ fun PotentiaApp() {
                             }
                         }
                     }
-                    Screen.Q_SITUATIONAL -> SituationalQuestionScreen(
-                        selectedAnswer,
-                        { selectedAnswer = it },
-                        { navigate(Screen.ASSESSMENT_INTRO) },
-                        { navigate(Screen.Q_LOGIC) }
-                    )
-                    Screen.Q_LOGIC -> LogicQuestionScreen(
-                        selectedAnswer,
-                        { selectedAnswer = it },
-                        { navigate(Screen.Q_SITUATIONAL) },
-                        { navigate(Screen.Q_PATTERN) }
-                    )
-                    Screen.Q_PATTERN -> PatternQuestionScreen(
-                        selectedAnswer,
-                        { selectedAnswer = it },
-                        { navigate(Screen.Q_LOGIC) },
-                        { navigate(Screen.Q_SPATIAL) }
-                    )
-                    Screen.Q_SPATIAL -> SpatialQuestionScreen(
-                        selectedAnswer,
-                        { selectedAnswer = it },
-                        { navigate(Screen.Q_PATTERN) },
-                        { navigate(Screen.Q_CREATIVE) }
-                    )
-                    Screen.Q_CREATIVE -> CreativeQuestionScreen(
-                        selectedAnswer,
-                        { selectedAnswer = it },
-                        { navigate(Screen.Q_SPATIAL) },
-                        { navigate(Screen.Q_REFLECTION) }
-                    )
-                    Screen.Q_REFLECTION -> ReflectionQuestionScreen(
-                        reflectionScore,
-                        { reflectionScore = it },
-                        { navigate(Screen.Q_CREATIVE) },
-                        { navigate(Screen.PROCESSING) }
-                    )
                     Screen.PROCESSING -> ProcessingScreen()
                     Screen.RESULT_OVERVIEW -> ResultOverviewScreen(
                         result = selectedResult,
@@ -1587,384 +1565,6 @@ private fun QuestionFrame(
         Spacer(Modifier.height(20.dp))
         content()
         Spacer(Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun SituationalQuestionScreen(
-    selected: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onNext: () -> Unit
-) {
-    val answers = listOf(
-        "Mencari pola atau aturan yang mungkin berlaku, lalu mencoba menerapkannya",
-        "Mengumpulkan informasi dari berbagai sumber sebelum membuat keputusan",
-        "Bertanya kepada seseorang yang lebih berpengalaman untuk mendapat perspektif",
-        "Langsung mencoba berbagai pendekatan dan belajar dari hasilnya"
-    )
-    QuestionFrame(
-        1, "Situasi & Preferensi", "Bagian 1 · 1/3",
-        "Ketika menghadapi masalah baru yang belum pernah kamu temui, apa yang paling sering kamu lakukan pertama kali?",
-        onBack
-    ) {
-        answers.forEachIndexed { i, text ->
-            AnswerRow(i, text, selected == i) { onSelect(i) }
-            Spacer(Modifier.height(10.dp))
-        }
-        PrimaryButton(
-            if (selected == null) "Pilih jawaban" else "Lanjut",
-            enabled = selected != null,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun LogicQuestionScreen(
-    selected: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onNext: () -> Unit
-) {
-    QuestionFrame(
-        2, "Pola & Logika", "Bagian 2 · 1/2",
-        "Angka manakah yang melanjutkan pola berikut?",
-        onBack
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, Stone),
-            shape = RoundedCornerShape(13.dp)
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf("2", "6", "18", "54", "?").forEachIndexed { i, n ->
-                    Box(
-                        Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (n == "?") Charcoal else Gold.copy(alpha = .12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            n,
-                            color = if (n == "?") Gold else Charcoal,
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    if (i < 4) Text("→", color = Muted.copy(alpha = .4f))
-                }
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        listOf("108", "162", "216", "270").forEachIndexed { i, text ->
-            AnswerRow(i, text, selected == i) { onSelect(i) }
-            Spacer(Modifier.height(10.dp))
-        }
-        PrimaryButton(
-            if (selected == null) "Pilih jawaban" else "Lanjut",
-            enabled = selected != null,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun DotPattern(count: Int, radiusScale: Float, selected: Boolean = false) {
-    Canvas(Modifier.size(64.dp)) {
-        val r = size.minDimension * .27f
-        if (count == 1) {
-            drawCircle(if (selected) Gold else Muted, size.minDimension * radiusScale, center)
-        } else {
-            repeat(count) { i ->
-                val a = 2f * PI.toFloat() * i / count - PI.toFloat() / 2f
-                val c = Offset(
-                    center.x + r * cos(a),
-                    center.y + r * sin(a)
-                )
-                drawCircle(
-                    if (selected) Gold else Muted,
-                    size.minDimension * radiusScale,
-                    c
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PatternQuestionScreen(
-    selected: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onNext: () -> Unit
-) {
-    QuestionFrame(
-        3, "Pola Visual", "Bagian 2 · 2/2",
-        "Gambar mana yang seharusnya mengisi posisi terakhir?",
-        onBack
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(13.dp)
-        ) {
-            Column(Modifier.padding(14.dp)) {
-                val cells = listOf(1, 2, 3, 2, 3, 0)
-                repeat(2) { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(3) { col ->
-                            val v = cells[row * 3 + col]
-                            Box(
-                                Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (v == 0) Charcoal else Gold.copy(alpha = .09f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (v == 0) {
-                                    Text("?", color = Gold, fontFamily = FontFamily.Serif, fontSize = 24.sp)
-                                } else {
-                                    DotPattern(v, if (row == 0) .06f else .07f)
-                                }
-                            }
-                        }
-                    }
-                    if (row == 0) Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
-        Spacer(Modifier.height(18.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf(4, 3).forEachIndexed { i, count ->
-                PatternOption(i, count, selected == i) { onSelect(i) }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf(4, 5).forEachIndexed { j, count ->
-                val i = j + 2
-                PatternOption(i, count, selected == i) { onSelect(i) }
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        PrimaryButton(
-            if (selected == null) "Pilih jawaban" else "Lanjut",
-            enabled = selected != null,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun RowScope.PatternOption(index: Int, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Gold.copy(alpha = .10f) else Color.White)
-            .border(1.5.dp, if (selected) Gold else Stone, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        DotPattern(count, if (index == 2) .075f else .07f, selected)
-        Text(('A'.code + index).toChar().toString(), color = if (selected) Gold else Muted, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun ArrowShape(rotation: Float, color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        rotate(rotation, center) {
-            val w = size.width
-            val h = size.height
-            val path = Path().apply {
-                moveTo(w * .5f, h * .08f)
-                lineTo(w * .76f, h * .42f)
-                lineTo(w * .60f, h * .42f)
-                lineTo(w * .60f, h * .88f)
-                lineTo(w * .40f, h * .88f)
-                lineTo(w * .40f, h * .42f)
-                lineTo(w * .24f, h * .42f)
-                close()
-            }
-            drawPath(path, color)
-        }
-    }
-}
-
-@Composable
-private fun SpatialQuestionScreen(
-    selected: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onNext: () -> Unit
-) {
-    QuestionFrame(
-        4, "Visual & Spasial", "Bagian 3 · 1/2",
-        "Jika bentuk ini diputar 90° searah jarum jam, pilihan mana yang benar?",
-        onBack
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(13.dp)
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(22.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ArrowShape(0f, Charcoal, Modifier.size(54.dp))
-                Spacer(Modifier.width(24.dp))
-                Text("→", color = Gold, fontSize = 24.sp)
-                Spacer(Modifier.width(24.dp))
-                Box(
-                    Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Charcoal),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("?", color = Gold, fontFamily = FontFamily.Serif, fontSize = 24.sp)
-                }
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        val rots = listOf(0f, 90f, 180f, 45f)
-        repeat(2) { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(2) { col ->
-                    val i = row * 2 + col
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selected == i) Gold.copy(alpha = .10f) else Color.White)
-                            .border(1.5.dp, if (selected == i) Gold else Stone, RoundedCornerShape(10.dp))
-                            .clickable { onSelect(i) }
-                            .padding(14.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        ArrowShape(rots[i], if (selected == i) Gold else Muted, Modifier.size(58.dp))
-                        Text(('A'.code + i).toChar().toString(), color = if (selected == i) Gold else Muted, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            if (row == 0) Spacer(Modifier.height(10.dp))
-        }
-        Spacer(Modifier.height(20.dp))
-        PrimaryButton(
-            if (selected == null) "Pilih jawaban" else "Lanjut",
-            enabled = selected != null,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun CreativeQuestionScreen(
-    selected: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onNext: () -> Unit
-) {
-    val answers = listOf(
-        "Mencari sudut pandang dari topik itu yang relevan dengan hal yang kamu sukai",
-        "Membuat struktur yang jelas dan logis agar presentasinya tetap efektif",
-        "Berkolaborasi dengan orang lain yang lebih tertarik dengan topik tersebut",
-        "Mengerjakan dengan standar yang cukup, lalu menyimpan energi untuk hal lain"
-    )
-    QuestionFrame(
-        5, "Skenario Kreatif", "Bagian 3 · 2/2",
-        "Kamu mendapat tugas membuat presentasi tentang topik yang sama sekali tidak kamu minati. Apa yang paling mungkin kamu lakukan?",
-        onBack
-    ) {
-        AssistChip(
-            onClick = {},
-            label = { Text("Tidak ada jawaban benar atau salah", fontSize = 11.sp) },
-            colors = AssistChipDefaults.assistChipColors(
-                containerColor = Gold.copy(alpha = .10f),
-                labelColor = Gold
-            ),
-            border = null
-        )
-        Spacer(Modifier.height(14.dp))
-        answers.forEachIndexed { i, text ->
-            AnswerRow(i, text, selected == i) { onSelect(i) }
-            Spacer(Modifier.height(10.dp))
-        }
-        PrimaryButton(
-            if (selected == null) "Pilih jawaban" else "Lanjut",
-            enabled = selected != null,
-            onClick = onNext
-        )
-    }
-}
-
-@Composable
-private fun ReflectionQuestionScreen(
-    score: Int?,
-    onSelect: (Int) -> Unit,
-    onBack: () -> Unit,
-    onFinish: () -> Unit
-) {
-    QuestionFrame(
-        6, "Refleksi", "Bagian 4 · 1/3",
-        "Seberapa sering kamu merasa lebih nyaman bekerja sendiri daripada dalam kelompok?",
-        onBack
-    ) {
-        Text("Pilih yang paling menggambarkan kebiasaanmu", color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(28.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (1..5).forEach { n ->
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (score == n) Gold else Color.White)
-                        .border(2.dp, if (score == n) Gold else Stone, RoundedCornerShape(10.dp))
-                        .clickable { onSelect(n) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        n.toString(),
-                        color = if (score == n) Ivory else Muted,
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Text("Hampir tidak\npernah", modifier = Modifier.weight(1f), color = Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
-            Text("Jarang", modifier = Modifier.weight(1f), color = Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
-            Text("Kadang", modifier = Modifier.weight(1f), color = Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
-            Text("Sering", modifier = Modifier.weight(1f), color = Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
-            Text("Sangat\nsering", modifier = Modifier.weight(1f), color = Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
-        }
-        Spacer(Modifier.height(30.dp))
-        PrimaryButton(
-            if (score == null) "Pilih nilai" else "Selesai & Lihat Hasil",
-            enabled = score != null,
-            onClick = onFinish
-        )
     }
 }
 
@@ -3209,8 +2809,44 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("potentia_prefs", Context.MODE_PRIVATE) }
-    var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", true)) }
+    var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", false)) }
+    var reminderPermissionDenied by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        reminderPermissionDenied = !granted
+        reminder = granted
+        prefs.edit().putBoolean("reminder_weekly", granted).apply()
+        WeeklyReminderScheduler.sync(context.applicationContext, granted)
+    }
+
+    fun updateReminder(enabled: Boolean) {
+        reminderPermissionDenied = false
+
+        if (!enabled) {
+            reminder = false
+            prefs.edit().putBoolean("reminder_weekly", false).apply()
+            WeeklyReminderScheduler.cancel(context.applicationContext)
+            return
+        }
+
+        if (WeeklyReminderScheduler.canPostNotifications(context)) {
+            reminder = true
+            prefs.edit().putBoolean("reminder_weekly", true).apply()
+            WeeklyReminderScheduler.schedule(context.applicationContext)
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            reminder = true
+            prefs.edit().putBoolean("reminder_weekly", true).apply()
+            WeeklyReminderScheduler.schedule(context.applicationContext)
+        }
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -3243,9 +2879,24 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("Preferensi")
-        ToggleRow("Pengingat latihan mingguan", reminder) {
-            reminder = it
-            prefs.edit().putBoolean("reminder_weekly", it).apply()
+        ToggleRow("Pengingat latihan mingguan", reminder) { enabled ->
+            updateReminder(enabled)
+        }
+        Text(
+            WeeklyReminderPolicy.DISPLAY_LABEL + " · notifikasi membuka tab Tumbuh.",
+            color = Muted,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        if (reminderPermissionDenied) {
+            Text(
+                "Izin notifikasi belum diberikan. Pengingat tetap nonaktif sampai izin disetujui.",
+                color = Color(0xFFB5451B),
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
         }
         ToggleRow("Rekomendasi pengembangan", recommendationsEnabled) {
             onRecommendationsEnabledChange(it)
