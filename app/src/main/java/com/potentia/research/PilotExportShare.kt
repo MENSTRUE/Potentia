@@ -41,7 +41,14 @@ object PilotExportShare {
         mimeType: String,
         payload: String
     ) {
-        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val exportDir = File(context.cacheDir, "exports").apply {
+            mkdirs()
+            // Pilot exports may contain free-text responses. Keep only the newest
+            // generated export in app cache to reduce residual local copies.
+            listFiles()?.forEach { oldFile ->
+                runCatching { oldFile.delete() }
+            }
+        }
         val file = File(exportDir, filename).apply {
             writeText(payload, Charsets.UTF_8)
         }

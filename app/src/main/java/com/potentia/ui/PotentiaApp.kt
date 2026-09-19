@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Paint
 import android.graphics.BitmapFactory
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
@@ -140,6 +141,14 @@ private fun AssessmentResult.toPotentialScores(): List<PotentialScore> =
 private fun formatAssessmentDate(timestamp: Long): String =
     SimpleDateFormat("MMMM yyyy", Locale("id", "ID")).format(Date(timestamp))
 
+private fun appVersionLabel(context: Context): String = runCatching {
+    context.packageManager
+        .getPackageInfo(context.packageName, 0)
+        .versionName
+        .orEmpty()
+        .ifBlank { "unknown" }
+}.getOrDefault("unknown")
+
 private val DarkScreens = setOf(Screen.SPLASH, Screen.PROCESSING)
 private val NoBottomBarScreens = setOf(
     Screen.SPLASH, Screen.ONBOARDING_1, Screen.ONBOARDING_2, Screen.ONBOARDING_3,
@@ -179,6 +188,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
     var selectedResultTimestamp by rememberSaveable {
         mutableStateOf(history.lastOrNull()?.completedAt)
     }
+    var resultReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var selectedDimensionId by rememberSaveable { mutableStateOf("logical") }
 
     var screen by rememberSaveable { mutableStateOf(Screen.SPLASH) }
@@ -260,6 +270,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
             pilotSessions = PilotResearchStorage.loadSessions(prefs)
             assessmentComplete = history.isNotEmpty()
             selectedResultTimestamp = result.completedAt
+            resultReturnScreen = Screen.ASSESSMENT_INTRO
             activeTab = MainTab.ASSESSMENT
             screen = Screen.RESULT_OVERVIEW
             session.consumeCompletedResult()
@@ -364,14 +375,47 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
         }
     }
 
-    fun openResult(timestamp: Long) {
+    fun openResult(timestamp: Long, returnTo: Screen = Screen.HOME) {
         selectedResultTimestamp = timestamp
+        resultReturnScreen = returnTo
         navigate(Screen.RESULT_OVERVIEW)
     }
 
     fun openDimension(dimensionId: String) {
         selectedDimensionId = dimensionId
         navigate(Screen.POTENTIAL_DETAIL)
+    }
+
+    BackHandler(
+        enabled = screen !in setOf(Screen.SPLASH, Screen.HOME, Screen.ONBOARDING_1)
+    ) {
+        when (screen) {
+            Screen.ONBOARDING_2 -> navigate(Screen.ONBOARDING_1)
+            Screen.ONBOARDING_3 -> navigate(Screen.ONBOARDING_2)
+            Screen.ASSESSMENT_INTRO -> navigate(Screen.HOME)
+            Screen.PILOT_CONSENT -> {
+                if (pilotConsentPurpose == PilotConsentPurpose.SETTINGS) {
+                    navigate(Screen.PILOT_DATA)
+                } else {
+                    navigate(Screen.ASSESSMENT_INTRO)
+                }
+            }
+            Screen.ASSESSMENT_SESSION -> {
+                assessmentSessionViewModel?.forceSaveDraft()
+                navigate(Screen.ASSESSMENT_INTRO)
+            }
+            // Do not interrupt a scoring write in progress.
+            Screen.PROCESSING -> Unit
+            Screen.RESULT_OVERVIEW -> navigate(resultReturnScreen)
+            Screen.POTENTIAL_DETAIL, Screen.POTENTIAL_MAP -> navigate(Screen.RESULT_OVERVIEW)
+            Screen.GROWTH -> navigate(Screen.HOME)
+            Screen.HISTORY -> navigate(Screen.PROFILE)
+            Screen.COMPARISON -> navigate(Screen.HISTORY)
+            Screen.DIMENSION_LIBRARY -> navigate(Screen.HOME)
+            Screen.PROFILE -> navigate(Screen.HOME)
+            Screen.SETTINGS, Screen.PILOT_DATA, Screen.ABOUT -> navigate(Screen.PROFILE)
+            Screen.SPLASH, Screen.HOME, Screen.ONBOARDING_1 -> Unit
+        }
     }
 
     Surface(
@@ -419,7 +463,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         latestResult = history.lastOrNull(),
                         onStartAssessment = { navigate(Screen.ASSESSMENT_INTRO) },
                         onResult = {
-                            history.lastOrNull()?.let { openResult(it.completedAt) }
+                            history.lastOrNull()?.let { openResult(it.completedAt, Screen.HOME) }
                         },
                         onPotentialMap = {
                             selectedResultTimestamp = history.lastOrNull()?.completedAt
@@ -505,6 +549,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                     Screen.PROCESSING -> ProcessingScreen()
                     Screen.RESULT_OVERVIEW -> ResultOverviewScreen(
                         result = selectedResult,
+                        onBack = { navigate(resultReturnScreen) },
                         onMap = { navigate(Screen.POTENTIAL_MAP) },
                         onDetail = { dimensionId -> openDimension(dimensionId) }
                     )
@@ -526,7 +571,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         history = history,
                         onBack = { navigate(Screen.PROFILE) },
                         onStartAssessment = { navigate(Screen.ASSESSMENT_INTRO) },
-                        onResult = { timestamp -> openResult(timestamp) },
+                        onResult = { timestamp -> openResult(timestamp, Screen.HISTORY) },
                         onCompare = { navigate(Screen.COMPARISON) }
                     )
                     Screen.COMPARISON -> ComparisonScreen(
@@ -542,7 +587,10 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         assessmentCount = history.size,
                         onHistory = { navigate(Screen.HISTORY) },
                         onComparison = { navigate(Screen.COMPARISON) },
-                        onResult = { navigate(Screen.RESULT_OVERVIEW) },
+                        onResult = {
+                            resultReturnScreen = Screen.PROFILE
+                            navigate(Screen.RESULT_OVERVIEW)
+                        },
                         onSettings = { navigate(Screen.SETTINGS) },
                         onPrivacyData = { navigate(Screen.PILOT_DATA) },
                         onAbout = { navigate(Screen.ABOUT) }
@@ -2028,6 +2076,7 @@ private fun ProcessingScreen() {
 @Composable
 private fun ResultOverviewScreen(
     result: AssessmentResult?,
+    onBack: () -> Unit,
     onMap: () -> Unit,
     onDetail: (String) -> Unit
 ) {
@@ -2037,6 +2086,8 @@ private fun ResultOverviewScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            TopBack(onBack)
+            Spacer(Modifier.height(18.dp))
             PotentiaRings(Modifier.size(72.dp), color = Gold.copy(alpha = .5f))
             Spacer(Modifier.height(16.dp))
             Heading("Belum ada hasil asesmen", 20)
@@ -2058,6 +2109,8 @@ private fun ResultOverviewScreen(
             .verticalScroll(rememberScrollState())
             .padding(22.dp)
     ) {
+        TopBack(onBack)
+        Spacer(Modifier.height(6.dp))
         Overline("Profil Potensi · Pilot")
         Heading(formatAssessmentDate(result.completedAt), 28)
         Text("Berdasarkan respons yang tersimpan pada sesi asesmen ini", color = Muted, fontSize = 13.sp)
@@ -3575,6 +3628,7 @@ private fun SettingsScreen(
     var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", false)) }
     var reminderPermissionDenied by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    val versionLabel = remember(context.packageName) { appVersionLabel(context) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -3689,7 +3743,7 @@ private fun SettingsScreen(
         Spacer(Modifier.height(24.dp))
         SectionLabel("Tentang")
         SettingsRow("Tentang POTENTIA", onClick = onAbout)
-        SettingsRow("Versi", info = "0.1.0 · Core V2", onClick = {})
+        SettingsRow("Versi", info = "$versionLabel · Research Pilot RC", onClick = {})
         Spacer(Modifier.height(20.dp))
     }
 }

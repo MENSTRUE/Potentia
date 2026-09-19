@@ -6,5 +6,6 @@
         <item name="android:statusBarColor">#FAF9F6</item>
         <item name="android:navigationBarColor">#FAF9F6</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
