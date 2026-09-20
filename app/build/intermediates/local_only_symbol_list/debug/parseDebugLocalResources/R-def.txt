@@ -5,6 +5,9 @@ drawable ic_launcher_background
 drawable ic_launcher_foreground
 drawable ic_launcher_monochrome
 drawable ic_notification_potentia
+drawable potentia_launcher_mark
+drawable potentia_launcher_monochrome_mark
+drawable potentia_logo_launcher_ivory
 drawable potentia_logo_mark
 mipmap ic_launcher
 mipmap ic_launcher_round

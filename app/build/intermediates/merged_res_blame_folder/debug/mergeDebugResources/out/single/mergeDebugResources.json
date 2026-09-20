@@ -1,23 +1,39 @@
 [
     {
-        "merged": "com.potentia.app-debug-57:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.potentia.app-main-59:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.potentia.app-debug-57:/drawable_potentia_launcher_mark.xml.flat",
+        "source": "com.potentia.app-main-59:/drawable/potentia_launcher_mark.xml"
+    },
+    {
+        "merged": "com.potentia.app-debug-57:/drawable_potentia_launcher_monochrome_mark.xml.flat",
+        "source": "com.potentia.app-main-59:/drawable/potentia_launcher_monochrome_mark.xml"
+    },
+    {
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\drawable-nodpi_potentia_logo_launcher_ivory.png.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\drawable-nodpi\\potentia_logo_launcher_ivory.png"
     },
     {
         "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
         "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
     },
     {
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\drawable-nodpi_potentia_logo_mark.png.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\drawable-nodpi\\potentia_logo_mark.png"
+    },
+    {
         "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\xml_file_paths.xml.flat",
         "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\xml\\file_paths.xml"
     },
     {
-        "merged": "com.potentia.app-debug-57:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.potentia.app-main-59:/drawable/ic_launcher_background.xml"
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\drawable_ic_launcher_background.xml.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\drawable\\ic_launcher_background.xml"
     },
     {
-        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\mipmap-anydpi-v26\\ic_launcher.xml"
+        "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\drawable_ic_launcher_monochrome.xml.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-main-59:\\drawable\\ic_launcher_monochrome.xml"
     },
     {
         "merged": "C:\\Users\\Asus\\.gradle\\caches\\8.10.2\\daemon\\8.9\\com.potentia.app-debug-57:\\drawable_ic_notification_potentia.xml.flat",
@@ -30,10 +46,6 @@
     {
         "merged": "com.potentia.app-debug-57:/drawable_ic_launcher_monochrome.xml.flat",
         "source": "com.potentia.app-main-59:/drawable/ic_launcher_monochrome.xml"
-    },
-    {
-        "merged": "com.potentia.app-debug-57:/drawable-nodpi_potentia_logo_mark.png.flat",
-        "source": "com.potentia.app-main-59:/drawable-nodpi/potentia_logo_mark.png"
     },
     {
         "merged": "com.potentia.app-debug-57:/drawable_ic_launcher_foreground.xml.flat",

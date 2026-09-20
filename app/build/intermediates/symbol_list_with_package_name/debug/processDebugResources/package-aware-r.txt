@@ -74,6 +74,9 @@ drawable notification_template_icon_bg
 drawable notification_template_icon_low_bg
 drawable notification_tile_bg
 drawable notify_panel_notification_icon_bg
+drawable potentia_launcher_mark
+drawable potentia_launcher_monochrome_mark
+drawable potentia_logo_launcher_ivory
 drawable potentia_logo_mark
 id accessibility_action_clickable_span
 id accessibility_custom_action_0
