@@ -35,6 +35,18 @@ object PilotExportShare {
         )
     }
 
+    fun shareSessionCsv(
+        context: Context,
+        session: PilotSessionRecord
+    ) {
+        shareFile(
+            context = context,
+            filename = "potentia_pilot_session_${sessionFileToken(session.sessionId)}_${timestamp()}.csv",
+            mimeType = "text/csv",
+            payload = PilotResearchStorage.exportLongCsv(listOf(session))
+        )
+    }
+
     private fun shareFile(
         context: Context,
         filename: String,
@@ -66,6 +78,13 @@ object PilotExportShare {
         }
         context.startActivity(Intent.createChooser(intent, "Ekspor data pilot POTENTIA"))
     }
+
+    private fun sessionFileToken(sessionId: String): String =
+        sessionId
+            .removePrefix("S-")
+            .replace(Regex("[^A-Za-z0-9_-]"), "")
+            .take(12)
+            .ifBlank { "session" }
 
     private fun timestamp(): String =
         SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())

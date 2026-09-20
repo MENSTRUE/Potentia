@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="potentia_icon_background">#171714</color>
+    <string name="app_name">POTENTIA</string>
     <style name="Theme.Potentia" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">#FAF9F6</item>
         <item name="android:navigationBarColor">#FAF9F6</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

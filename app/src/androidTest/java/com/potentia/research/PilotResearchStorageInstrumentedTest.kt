@@ -76,10 +76,10 @@ class PilotResearchStorageInstrumentedTest {
             PilotResearchStorage.exportJson(consent, loaded)
                 .contains("jawaban bebas pilot")
         )
-        assertTrue(
-            PilotResearchStorage.exportLongCsv(loaded)
-                .contains("CRE_001")
-        )
+        val csv = PilotResearchStorage.exportLongCsv(loaded)
+        assertTrue(csv.contains("CRE_001"))
+        assertTrue(csv.contains("S-test-session"))
+        assertEquals(2, csv.lineSequence().count { it.isNotBlank() })
 
         val personal = PilotResearchStorage.choosePersonalOnly(prefs)
         assertFalse(personal.researchEnabled)

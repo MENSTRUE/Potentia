@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.potentia.R
 import com.potentia.assessment.*
 import com.potentia.growth.*
 import com.potentia.reminder.WeeklyReminderPolicy
@@ -549,9 +552,13 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                     Screen.PROCESSING -> ProcessingScreen()
                     Screen.RESULT_OVERVIEW -> ResultOverviewScreen(
                         result = selectedResult,
+                        pilotSession = selectedResult?.let { selected ->
+                            pilotSessions.firstOrNull { it.result.completedAt == selected.completedAt }
+                        },
                         onBack = { navigate(resultReturnScreen) },
                         onMap = { navigate(Screen.POTENTIAL_MAP) },
-                        onDetail = { dimensionId -> openDimension(dimensionId) }
+                        onDetail = { dimensionId -> openDimension(dimensionId) },
+                        onPilotData = { navigate(Screen.PILOT_DATA) }
                     )
                     Screen.POTENTIAL_DETAIL -> PotentialDetailScreen(
                         result = selectedResult,
@@ -944,37 +951,58 @@ private fun PotentiaBottomBar(
 @Composable
 private fun SplashScreen() {
     Box(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(Charcoal),
         contentAlignment = Alignment.Center
     ) {
-        PotentiaRings(
-            modifier = Modifier.size(360.dp),
-            color = Gold.copy(alpha = .22f),
-            animated = true
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            PotentiaRings(
-                modifier = Modifier.size(130.dp),
-                color = Ivory.copy(alpha = .92f),
-                animated = true
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.potentia_logo_mark),
+                contentDescription = "Logo Potentia",
+                modifier = Modifier.size(112.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(Ivory)
             )
-            Spacer(Modifier.height(18.dp))
+
+            Spacer(Modifier.height(28.dp))
+
             Text(
-                "POTENTIA",
+                text = "POTENTIA",
                 color = Ivory,
-                fontSize = 38.sp,
-                letterSpacing = 7.sp,
+                fontSize = 30.sp,
+                lineHeight = 34.sp,
+                letterSpacing = 6.sp,
                 fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(7.dp))
+
+            Spacer(Modifier.height(14.dp))
+
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(1.dp)
+                    .background(Gold.copy(alpha = 0.78f))
+            )
+
+            Spacer(Modifier.height(14.dp))
+
             Text(
-                "Discover what can grow.",
-                color = Ivory.copy(alpha = .38f),
-                fontSize = 12.sp,
-                letterSpacing = 2.sp
+                text = "Discover what can grow.",
+                color = Ivory.copy(alpha = 0.46f),
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -1800,14 +1828,21 @@ private fun PilotDataScreen(
 
         Spacer(Modifier.height(26.dp))
         SectionLabel("Ekspor penelitian")
+        Text(
+            "CSV memakai format long: satu baris = satu respons item. Jadi satu asesmen 47 item biasanya menghasilkan sekitar 47 baris, tetapi tetap merupakan satu sesi peserta.",
+            color = Muted,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(8.dp))
         SettingsRow(
             "Ekspor JSON lengkap",
             info = if (sessions.isEmpty()) "Kosong" else "${sessions.size} sesi",
             onClick = { if (sessions.isNotEmpty()) pendingExport = "json" }
         )
         SettingsRow(
-            "Ekspor CSV respons item",
-            info = if (sessions.isEmpty()) "Kosong" else "Long format",
+            "Ekspor seluruh sesi (CSV)",
+            info = if (sessions.isEmpty()) "Kosong" else "${sessions.size} sesi · long format",
             onClick = { if (sessions.isNotEmpty()) pendingExport = "csv" }
         )
 
@@ -2076,9 +2111,11 @@ private fun ProcessingScreen() {
 @Composable
 private fun ResultOverviewScreen(
     result: AssessmentResult?,
+    pilotSession: PilotSessionRecord?,
     onBack: () -> Unit,
     onMap: () -> Unit,
-    onDetail: (String) -> Unit
+    onDetail: (String) -> Unit,
+    onPilotData: () -> Unit
 ) {
     if (result == null) {
         Column(
@@ -2097,6 +2134,7 @@ private fun ResultOverviewScreen(
         return
     }
 
+    val context = LocalContext.current
     val scores = result.toPotentialScores()
     val ranked = DimensionOrder.mapNotNull { id ->
         result.dimensions[id]?.score?.let { id to it }
@@ -2148,6 +2186,50 @@ private fun ResultOverviewScreen(
                     fontSize = 12.sp,
                     lineHeight = 18.sp
                 )
+            }
+        }
+
+        pilotSession?.let { session ->
+            Spacer(Modifier.height(14.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Gold.copy(alpha = .35f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(15.dp)) {
+                    Text(
+                        "DATA PILOT SESI INI",
+                        color = Gold,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.1.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${session.responses.size} respons item sudah tersimpan lokal.",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "Untuk penelitian, ekspor CSV sesi ini lalu kirimkan file tersebut kepada peneliti. Satu sesi 47 item menghasilkan sekitar 47 baris respons; itu tetap dihitung sebagai 1 peserta/sesi, bukan 47 responden.",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    PrimaryButton(
+                        "Ekspor CSV Sesi Ini",
+                        onClick = { PilotExportShare.shareSessionCsv(context, session) }
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(
+                        onClick = onPilotData,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Kelola Privasi & Data", color = Gold)
+                    }
+                }
             }
         }
 
@@ -3031,9 +3113,9 @@ private fun GrowthReflectionForm(
         }
     }
     val valid = exercise.reflectionPrompts.isNotEmpty() &&
-        exercise.reflectionPrompts.all { prompt ->
-            answers[prompt.id].orEmpty().trim().length >= prompt.minChars
-        }
+            exercise.reflectionPrompts.all { prompt ->
+                answers[prompt.id].orEmpty().trim().length >= prompt.minChars
+            }
 
     Text(
         "Catatan refleksi",
