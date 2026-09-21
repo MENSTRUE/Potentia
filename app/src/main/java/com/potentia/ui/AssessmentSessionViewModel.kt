@@ -20,6 +20,7 @@ import com.potentia.assessment.AssessmentStorage
 import com.potentia.research.PilotItemResponse
 import com.potentia.research.PilotResearchStorage
 import com.potentia.research.PilotSessionRecord
+import com.potentia.research.PilotSyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -252,6 +253,12 @@ internal class AssessmentSessionViewModel(
                     }
                     if (!pilotPersisted) {
                         throw IOException("Data pilot gagal disimpan secara lokal.")
+                    }
+
+                    // Auto-sync is best-effort. The locally persisted pilot record is the
+                    // source of truth and remains available for manual CSV/JSON export.
+                    runCatching {
+                        PilotSyncScheduler.enqueue(applicationContext)
                     }
                 }
 

@@ -1,0 +1,6 @@
+# Keep your existing Android SDK path in local.properties, for example:
+# sdk.dir=C\\:\\Users\\YOUR_USER\\AppData\\Local\\Android\\Sdk
+
+# POTENTIA pilot auto-sync. Copy these two lines into your real local.properties.
+POTENTIA_PILOT_SYNC_ENDPOINT=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+POTENTIA_PILOT_SYNC_TOKEN=PASTE_TOKEN_FROM_APPS_SCRIPT_SETUP

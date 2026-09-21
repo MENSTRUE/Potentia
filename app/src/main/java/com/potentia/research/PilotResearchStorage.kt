@@ -8,7 +8,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object PilotResearchStorage {
-    const val CURRENT_CONSENT_VERSION = "potentia-pilot-consent-v1"
+    const val CURRENT_CONSENT_VERSION = "potentia-pilot-consent-v2-autosync"
 
     private const val KEY_MODE = "pilot_participation_mode_v1"
     private const val KEY_CONSENT_VERSION = "pilot_consent_version_v1"
@@ -63,6 +63,7 @@ object PilotResearchStorage {
             .remove(KEY_PARTICIPANT_ID)
             .remove(KEY_SESSIONS)
             .commit()
+            .also { if (it) PilotSyncStorage.clear(prefs) }
 
     fun loadSessions(prefs: SharedPreferences): List<PilotSessionRecord> {
         val raw = prefs.getString(KEY_SESSIONS, null) ?: return emptyList()
@@ -103,7 +104,7 @@ object PilotResearchStorage {
             put("generatedAt", System.currentTimeMillis())
             put("consentVersion", consentState.consentVersion ?: JSONObject.NULL)
             put("participantId", consentState.participantId ?: JSONObject.NULL)
-            put("notice", "PILOT / RESEARCH ONLY. Raw item responses may include free text. No automatic upload is performed by the app.")
+            put("notice", "PILOT / RESEARCH ONLY. Raw item responses may include free text. When pilot auto-sync is configured and consent is active, stored pilot sessions may be uploaded automatically to the researcher-controlled endpoint. Manual export remains available.")
             put("sessionCount", sessions.size)
             put("sessions", JSONArray().apply {
                 sessions.sortedBy { it.completedAt }.forEach { put(toJson(it)) }

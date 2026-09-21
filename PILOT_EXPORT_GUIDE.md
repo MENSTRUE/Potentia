@@ -30,3 +30,7 @@ Do not treat these numbers as proof of validation. Sample adequacy depends on th
 ## Privacy
 
 The current app does not automatically upload pilot data. Export is manual and participant-controlled. Free-text Creative responses may be present in the CSV, so the receiving location must be appropriate for research data.
+
+## RC1.2 auto-sync note
+
+When `POTENTIA_PILOT_SYNC_ENDPOINT` and `POTENTIA_PILOT_SYNC_TOKEN` are configured in the build, completed Pilot Pseudonim sessions are also queued for automatic HTTPS sync. Manual CSV/JSON export remains available as a backup. See `AUTO_SYNC_SETUP.md`.

@@ -219,6 +219,10 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
             context = context.applicationContext,
             enabled = prefs.getBoolean("reminder_weekly", false)
         )
+
+        if (PilotResearchStorage.readConsentState(prefs).researchEnabled) {
+            PilotSyncScheduler.enqueue(context.applicationContext)
+        }
     }
 
     LaunchedEffect(growthOpenRequest) {
@@ -623,15 +627,23 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                     Screen.PILOT_DATA -> PilotDataScreen(
                         consentState = pilotConsentState,
                         sessions = pilotSessions,
+                        history = history,
+                        syncConfigured = PilotSyncConfig.isConfigured,
+                        syncSummary = PilotSyncStorage.summary(prefs, pilotSessions),
                         onBack = { navigate(Screen.PROFILE) },
                         onChangeParticipation = {
                             pilotConsentPurpose = PilotConsentPurpose.SETTINGS
                             navigate(Screen.PILOT_CONSENT)
                         },
+                        onSyncNow = {
+                            PilotSyncScheduler.enqueueNow(context.applicationContext)
+                        },
                         onWithdraw = {
+                            PilotSyncScheduler.cancel(context.applicationContext)
                             pilotConsentState = PilotResearchStorage.choosePersonalOnly(prefs)
                         },
                         onDeletePilotData = {
+                            PilotSyncScheduler.cancel(context.applicationContext)
                             PilotResearchStorage.clearPilotDataAndWithdraw(prefs)
                             pilotConsentState = PilotResearchStorage.readConsentState(prefs)
                             pilotSessions = emptyList()
@@ -1497,7 +1509,11 @@ private fun AssessmentIntroScreen(
                 pilotConsentState.requiresDecision ->
                     "Sebelum memulai sesi baru, kamu akan memilih apakah ingin berkontribusi data pilot pseudonim atau menggunakan mode pribadi."
                 pilotConsentState.researchEnabled ->
-                    "Mode pilot pseudonim aktif untuk sesi baru. Respons per-item dapat disimpan lokal untuk ekspor penelitian manual."
+                    if (PilotSyncConfig.isConfigured) {
+                        "Mode pilot pseudonim aktif. Respons per-item disimpan lokal dan akan diantrikan untuk sinkronisasi otomatis saat internet tersedia; ekspor manual tetap tersedia."
+                    } else {
+                        "Mode pilot pseudonim aktif. Respons per-item disimpan lokal untuk ekspor penelitian manual; auto-sync belum dikonfigurasi pada build ini."
+                    }
                 else ->
                     "Mode pribadi aktif. Respons per-item tidak dipertahankan setelah scoring selesai."
             }
@@ -1590,7 +1606,11 @@ private fun PilotConsentScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Tidak ada unggah otomatis. Data pilot hanya keluar dari perangkat jika kamu sendiri memilih ekspor/bagikan. Kamu dapat menghentikan kontribusi data baru atau menghapus data pilot lokal kapan saja.",
+                    if (PilotSyncConfig.isConfigured) {
+                        "Jika perangkat terhubung internet, sesi pilot yang selesai dapat dikirim otomatis ke penyimpanan penelitian yang dikendalikan peneliti. Data lokal tetap dipertahankan untuk retry dan ekspor manual. Kamu dapat menghentikan kontribusi data baru atau menghapus data pilot lokal kapan saja."
+                    } else {
+                        "Auto-sync belum dikonfigurasi pada build ini. Data pilot tetap disimpan lokal dan hanya keluar dari perangkat jika kamu memilih ekspor/bagikan."
+                    },
                     color = Muted,
                     fontSize = 13.sp,
                     lineHeight = 20.sp
@@ -1631,7 +1651,11 @@ private fun PilotConsentScreen(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "Saya memahami bahwa ini adalah pilot/research, bukan tes psikologis tervalidasi; jawaban bebas dapat tersimpan lokal jika saya memilih ikut pilot; dan persetujuan ini tidak menggantikan persetujuan etik/institusional yang mungkin diperlukan untuk penelitian formal.",
+                if (PilotSyncConfig.isConfigured) {
+                    "Saya memahami bahwa ini adalah pilot/research, bukan tes psikologis tervalidasi; respons per-item termasuk jawaban bebas dapat tersimpan lokal dan dikirim otomatis ke penyimpanan penelitian saat internet tersedia jika saya memilih ikut pilot; dan persetujuan ini tidak menggantikan persetujuan etik/institusional yang mungkin diperlukan untuk penelitian formal."
+                } else {
+                    "Saya memahami bahwa ini adalah pilot/research, bukan tes psikologis tervalidasi; jawaban bebas dapat tersimpan lokal jika saya memilih ikut pilot; dan persetujuan ini tidak menggantikan persetujuan etik/institusional yang mungkin diperlukan untuk penelitian formal."
+                },
                 color = Muted,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -1675,8 +1699,12 @@ private fun PilotConsentScreen(
 private fun PilotDataScreen(
     consentState: PilotConsentState,
     sessions: List<PilotSessionRecord>,
+    history: List<AssessmentResult>,
+    syncConfigured: Boolean,
+    syncSummary: PilotSyncStorage.Summary,
     onBack: () -> Unit,
     onChangeParticipation: () -> Unit,
+    onSyncNow: () -> Unit,
     onWithdraw: () -> Unit,
     onDeletePilotData: () -> Unit
 ) {
@@ -1684,6 +1712,7 @@ private fun PilotDataScreen(
     var showWithdrawDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
+    var syncRequested by rememberSaveable { mutableStateOf(false) }
 
     if (showWithdrawDialog) {
         AlertDialog(
@@ -1737,7 +1766,11 @@ private fun PilotDataScreen(
             title = { Text("Ekspor data pilot?") },
             text = {
                 Text(
-                    "Ekspor ini berisi respons per-item dan dapat memuat jawaban bebas. Bagikan hanya ke tujuan penelitian yang kamu percaya. POTENTIA tidak mengunggahnya otomatis."
+                    if (syncConfigured) {
+                        "Ekspor ini berisi respons per-item dan dapat memuat jawaban bebas. Auto-sync pilot pada build ini juga dapat mengirim sesi pilot ke penyimpanan penelitian. Gunakan ekspor manual sebagai backup atau salinan penelitian."
+                    } else {
+                        "Ekspor ini berisi respons per-item dan dapat memuat jawaban bebas. Bagikan hanya ke tujuan penelitian yang kamu percaya."
+                    }
                 )
             },
             confirmButton = {
@@ -1768,7 +1801,11 @@ private fun PilotDataScreen(
         Spacer(Modifier.height(10.dp))
         Heading("Privasi & Data Pilot", 27)
         Text(
-            "Kontrol partisipasi pilot dan data mentah yang tersimpan lokal di perangkat ini.",
+            if (syncConfigured) {
+                "Kontrol partisipasi, sinkronisasi, dan salinan data pilot yang tersimpan di perangkat ini."
+            } else {
+                "Kontrol partisipasi pilot dan data mentah yang tersimpan lokal di perangkat ini."
+            },
             color = Muted,
             fontSize = 13.sp,
             lineHeight = 19.sp
@@ -1805,7 +1842,11 @@ private fun PilotDataScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "${sessions.size} sesi pilot tersimpan lokal",
+                    if (consentState.researchEnabled) {
+                        "${sessions.size} sesi pilot mentah · ${history.size} hasil asesmen tersimpan"
+                    } else {
+                        "${history.size} hasil asesmen tersimpan · ${sessions.size} sesi pilot mentah"
+                    },
                     color = Muted,
                     fontSize = 12.sp
                 )
@@ -1827,22 +1868,113 @@ private fun PilotDataScreen(
         }
 
         Spacer(Modifier.height(26.dp))
-        SectionLabel("Ekspor penelitian")
+        SectionLabel("Sinkronisasi pilot")
+        if (!syncConfigured) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Stone),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    "Auto-sync belum dikonfigurasi pada build APK ini. Export CSV/JSON manual tetap dapat digunakan.",
+                    modifier = Modifier.padding(15.dp),
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Gold.copy(alpha = .08f)),
+                border = BorderStroke(1.dp, Gold.copy(alpha = .25f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(15.dp)) {
+                    Text("Auto-sync tersedia", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        if (consentState.researchEnabled) {
+                            "${syncSummary.syncedSessions} sesi tersinkron · ${syncSummary.pendingSessions} menunggu. Sesi baru dikirim otomatis saat internet tersedia."
+                        } else {
+                            "Mode pribadi aktif. Tidak ada data yang dikirim otomatis sampai Pilot Pseudonim diaktifkan kembali."
+                        },
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    syncSummary.lastError?.let { error ->
+                        Spacer(Modifier.height(7.dp))
+                        Text(
+                            "Status terakhir: $error",
+                            color = Color(0xFFB5451B),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                    if (syncRequested) {
+                        Spacer(Modifier.height(7.dp))
+                        Text(
+                            "Permintaan sinkronisasi sudah diantrikan. WorkManager akan menjalankannya ketika jaringan tersedia.",
+                            color = Muted,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+            if (consentState.researchEnabled && syncSummary.pendingSessions > 0) {
+                Spacer(Modifier.height(10.dp))
+                GhostButton(
+                    "Sinkronkan sekarang",
+                    onClick = {
+                        syncRequested = true
+                        onSyncNow()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(26.dp))
+        SectionLabel("Ekspor hasil asesmen")
         Text(
-            "CSV memakai format long: satu baris = satu respons item. Jadi satu asesmen 47 item biasanya menghasilkan sekitar 47 baris, tetapi tetap merupakan satu sesi peserta.",
+            "Ekspor ini selalu tersedia untuk hasil yang sudah tersimpan, termasuk Mode Pribadi. CSV berisi ringkasan 6 dimensi per asesmen dan tidak memuat jawaban mentah 47 item.",
             color = Muted,
             fontSize = 12.sp,
             lineHeight = 18.sp
         )
         Spacer(Modifier.height(8.dp))
         SettingsRow(
-            "Ekspor JSON lengkap",
-            info = if (sessions.isEmpty()) "Kosong" else "${sessions.size} sesi",
+            "Ekspor riwayat hasil (CSV)",
+            info = if (history.isEmpty()) "Kosong" else "${history.size} asesmen · 6 dimensi",
+            onClick = {
+                if (history.isNotEmpty()) {
+                    PilotExportShare.shareAssessmentHistoryCsv(context, history)
+                }
+            }
+        )
+
+        Spacer(Modifier.height(22.dp))
+        SectionLabel("Ekspor data pilot mentah")
+        Text(
+            if (sessions.isEmpty()) {
+                "Belum ada sesi Pilot Pseudonim. Respons mentah hanya disimpan jika partisipasi pilot sudah aktif sebelum sesi asesmen dimulai."
+            } else {
+                "CSV pilot memakai format long: satu baris = satu respons item. Satu asesmen 47 item biasanya menghasilkan sekitar 47 baris, tetapi tetap satu sesi peserta."
+            },
+            color = Muted,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        SettingsRow(
+            "Ekspor JSON pilot lengkap",
+            info = if (sessions.isEmpty()) "Belum ada sesi pilot" else "${sessions.size} sesi",
             onClick = { if (sessions.isNotEmpty()) pendingExport = "json" }
         )
         SettingsRow(
-            "Ekspor seluruh sesi (CSV)",
-            info = if (sessions.isEmpty()) "Kosong" else "${sessions.size} sesi · long format",
+            "Ekspor respons pilot (CSV)",
+            info = if (sessions.isEmpty()) "Belum ada sesi pilot" else "${sessions.size} sesi · 47 respons/sesi",
             onClick = { if (sessions.isNotEmpty()) pendingExport = "csv" }
         )
 
@@ -1866,7 +1998,11 @@ private fun PilotDataScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Data pilot tidak dikirim otomatis dan aplikasi tidak meminta izin INTERNET. Fitur persetujuan ini membantu transparansi di aplikasi, tetapi bukan pengganti telaah etik, informed-consent resmi, atau prosedur institusi jika POTENTIA digunakan dalam penelitian formal.",
+                if (syncConfigured) {
+                    "Build ini memiliki auto-sync pilot melalui HTTPS. Hanya sesi Pilot Pseudonim dengan persetujuan aktif yang diantrikan untuk dikirim; Mode Pribadi tidak mengirim respons mentah. Export manual tetap tersedia. Persetujuan di aplikasi bukan pengganti telaah etik atau informed-consent resmi jika diperlukan."
+                } else {
+                    "Auto-sync belum dikonfigurasi pada build ini. Data pilot tetap lokal sampai diekspor manual. Persetujuan di aplikasi bukan pengganti telaah etik atau informed-consent resmi jika diperlukan."
+                },
                 modifier = Modifier.padding(16.dp),
                 color = Muted,
                 fontSize = 12.sp,
@@ -2185,6 +2321,35 @@ private fun ResultOverviewScreen(
                     color = Muted,
                     fontSize = 12.sp,
                     lineHeight = 18.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Stone),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(Modifier.padding(15.dp)) {
+                Text(
+                    "EKSPOR HASIL SESI",
+                    color = Gold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.1.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Simpan atau bagikan ringkasan hasil 6 dimensi sesi ini sebagai CSV.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                GhostButton(
+                    "Ekspor Hasil CSV",
+                    onClick = { PilotExportShare.shareAssessmentResultCsv(context, result) }
                 )
             }
         }
@@ -3113,9 +3278,9 @@ private fun GrowthReflectionForm(
         }
     }
     val valid = exercise.reflectionPrompts.isNotEmpty() &&
-            exercise.reflectionPrompts.all { prompt ->
-                answers[prompt.id].orEmpty().trim().length >= prompt.minChars
-            }
+        exercise.reflectionPrompts.all { prompt ->
+            answers[prompt.id].orEmpty().trim().length >= prompt.minChars
+        }
 
     Text(
         "Catatan refleksi",
@@ -3362,6 +3527,7 @@ private fun HistoryScreen(
     onResult: (Long) -> Unit,
     onCompare: () -> Unit
 ) {
+    val context = LocalContext.current
     val ordered = history.sortedByDescending { it.completedAt }
 
     Column(
@@ -3379,6 +3545,22 @@ private fun HistoryScreen(
             fontSize = 13.sp,
             lineHeight = 19.sp
         )
+
+        if (ordered.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            GhostButton(
+                "Ekspor Riwayat Hasil (CSV)",
+                onClick = { PilotExportShare.shareAssessmentHistoryCsv(context, ordered) }
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Berisi ringkasan 6 dimensi per asesmen. Respons mentah 47 item hanya tersedia untuk sesi Pilot Pseudonim.",
+                color = Muted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        }
+
         Spacer(Modifier.height(22.dp))
 
         if (ordered.isEmpty()) {

@@ -1,3 +1,15 @@
+import java.util.Properties
+
+val potentiaLocalProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -11,13 +23,25 @@ android {
         applicationId = "com.potentia"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.0-rc1.1"
+        versionCode = 4
+        versionName = "0.2.0-rc1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "PILOT_SYNC_ENDPOINT",
+            buildConfigString(potentiaLocalProperties.getProperty("POTENTIA_PILOT_SYNC_ENDPOINT", ""))
+        )
+        buildConfigField(
+            "String",
+            "PILOT_SYNC_TOKEN",
+            buildConfigString(potentiaLocalProperties.getProperty("POTENTIA_PILOT_SYNC_TOKEN", ""))
+        )
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
