@@ -54,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.potentia.BuildConfig
 import com.potentia.R
 import com.potentia.assessment.*
 import com.potentia.growth.*
@@ -62,6 +63,7 @@ import com.potentia.reminder.WeeklyReminderScheduler
 import com.potentia.research.*
 import com.potentia.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -185,6 +187,11 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
     var pilotSessions by remember {
         mutableStateOf(PilotResearchStorage.loadSessions(prefs))
     }
+    var developerQaEnabled by remember {
+        mutableStateOf(
+            BuildConfig.DEBUG && prefs.getBoolean("developer_qa_enabled", false)
+        )
+    }
     var pilotConsentPurpose by rememberSaveable {
         mutableStateOf(PilotConsentPurpose.START_ASSESSMENT)
     }
@@ -234,6 +241,7 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
 
     val selectedResult = history.firstOrNull { it.completedAt == selectedResultTimestamp }
         ?: history.lastOrNull()
+    val syncedPilotIds = PilotSyncStorage.syncedIds(prefs)
 
     val isDark = screen in DarkScreens
     val view = LocalView.current
@@ -554,16 +562,24 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         }
                     }
                     Screen.PROCESSING -> ProcessingScreen()
-                    Screen.RESULT_OVERVIEW -> ResultOverviewScreen(
-                        result = selectedResult,
-                        pilotSession = selectedResult?.let { selected ->
+                    Screen.RESULT_OVERVIEW -> {
+                        val resultPilotSession = selectedResult?.let { selected ->
                             pilotSessions.firstOrNull { it.result.completedAt == selected.completedAt }
-                        },
-                        onBack = { navigate(resultReturnScreen) },
-                        onMap = { navigate(Screen.POTENTIAL_MAP) },
-                        onDetail = { dimensionId -> openDimension(dimensionId) },
-                        onPilotData = { navigate(Screen.PILOT_DATA) }
-                    )
+                        }
+                        ResultOverviewScreen(
+                            result = selectedResult,
+                            pilotSession = resultPilotSession,
+                            syncConfigured = PilotSyncConfig.isConfigured,
+                            pilotSessionSynced = resultPilotSession?.sessionId in syncedPilotIds,
+                            onBack = { navigate(resultReturnScreen) },
+                            onMap = { navigate(Screen.POTENTIAL_MAP) },
+                            onDetail = { dimensionId -> openDimension(dimensionId) },
+                            onPilotData = { navigate(Screen.PILOT_DATA) },
+                            onSyncNow = {
+                                PilotSyncScheduler.enqueueNow(context.applicationContext)
+                            }
+                        )
+                    }
                     Screen.POTENTIAL_DETAIL -> PotentialDetailScreen(
                         result = selectedResult,
                         dimensionId = selectedDimensionId,
@@ -580,6 +596,9 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                     )
                     Screen.HISTORY -> HistoryScreen(
                         history = history,
+                        pilotSessions = pilotSessions,
+                        syncedPilotIds = syncedPilotIds,
+                        syncConfigured = PilotSyncConfig.isConfigured,
                         onBack = { navigate(Screen.PROFILE) },
                         onStartAssessment = { navigate(Screen.ASSESSMENT_INTRO) },
                         onResult = { timestamp -> openResult(timestamp, Screen.HISTORY) },
@@ -613,6 +632,13 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                             developmentRecommendationsEnabled = enabled
                             prefs.edit().putBoolean("development_recommendations", enabled).apply()
                         },
+                        developerQaEnabled = developerQaEnabled,
+                        onDeveloperQaEnabledChange = { enabled ->
+                            developerQaEnabled = BuildConfig.DEBUG && enabled
+                            prefs.edit()
+                                .putBoolean("developer_qa_enabled", developerQaEnabled)
+                                .apply()
+                        },
                         onBack = { navigate(Screen.PROFILE) },
                         onAbout = { navigate(Screen.ABOUT) },
                         onPilotData = { navigate(Screen.PILOT_DATA) },
@@ -628,6 +654,8 @@ fun PotentiaApp(growthOpenRequest: Int = 0) {
                         consentState = pilotConsentState,
                         sessions = pilotSessions,
                         history = history,
+                        assessmentBank = assessmentBank,
+                        developerQaEnabled = developerQaEnabled,
                         syncConfigured = PilotSyncConfig.isConfigured,
                         syncSummary = PilotSyncStorage.summary(prefs, pilotSessions),
                         onBack = { navigate(Screen.PROFILE) },
@@ -1700,6 +1728,8 @@ private fun PilotDataScreen(
     consentState: PilotConsentState,
     sessions: List<PilotSessionRecord>,
     history: List<AssessmentResult>,
+    assessmentBank: AssessmentBank?,
+    developerQaEnabled: Boolean,
     syncConfigured: Boolean,
     syncSummary: PilotSyncStorage.Summary,
     onBack: () -> Unit,
@@ -1713,6 +1743,10 @@ private fun PilotDataScreen(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
     var syncRequested by rememberSaveable { mutableStateOf(false) }
+    val qaScope = rememberCoroutineScope()
+    var qaRunning by remember { mutableStateOf(false) }
+    var qaMessage by remember { mutableStateOf<String?>(null) }
+    var qaRecord by remember { mutableStateOf<PilotSessionRecord?>(null) }
 
     if (showWithdrawDialog) {
         AlertDialog(
@@ -1931,6 +1965,88 @@ private fun PilotDataScreen(
                         onSyncNow()
                     },
                     modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        if (BuildConfig.DEBUG && developerQaEnabled) {
+            Spacer(Modifier.height(26.dp))
+            SectionLabel("Developer QA")
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7E6)),
+                border = BorderStroke(1.dp, Gold.copy(alpha = .35f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(15.dp)) {
+                    Text(
+                        "Smoke test tanpa mengisi 47 soal",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "POTENTIA membuat 47 respons sintetis, menjalankan scoring asli, lalu mengirimnya sebagai QA_TEST. Data ini tidak masuk Riwayat, tidak masuk sesi pilot lokal, dan server memisahkannya ke QA_Sessions / QA_Responses.",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    qaMessage?.let { message ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            message,
+                            color = if (message.startsWith("BERHASIL")) Success else Color(0xFFB5451B),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(
+                label = if (qaRunning) "Menjalankan smoke test..." else "Jalankan Smoke Test 47 Item",
+                enabled = !qaRunning && syncConfigured && assessmentBank != null,
+                onClick = {
+                    val bank = assessmentBank
+                    if (bank != null) {
+                        qaRunning = true
+                        qaMessage = null
+                        qaScope.launch {
+                            try {
+                                val qa = PilotQaTester.run(
+                                    context = context.applicationContext,
+                                    bank = bank
+                                )
+                                qaRecord = qa.record
+                                qaMessage = when (val upload = qa.uploadResult) {
+                                    PilotSyncClient.Result.Success ->
+                                        "BERHASIL · ${qa.record.responses.size} respons QA dikirim. Cek tab QA_Sessions dan QA_Responses di Google Sheet."
+                                    is PilotSyncClient.Result.Retryable ->
+                                        "GAGAL SEMENTARA · ${upload.message}"
+                                    is PilotSyncClient.Result.PermanentFailure ->
+                                        "GAGAL · ${upload.message}"
+                                }
+                            } catch (error: Exception) {
+                                qaMessage = "GAGAL · ${error.message ?: error::class.java.simpleName}"
+                            } finally {
+                                qaRunning = false
+                            }
+                        }
+                    }
+                }
+            )
+            if (!syncConfigured) {
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    "Auto-sync belum dikonfigurasi, jadi smoke test server belum dapat dijalankan.",
+                    color = Color(0xFFB5451B),
+                    fontSize = 11.sp
+                )
+            }
+            qaRecord?.let { record ->
+                Spacer(Modifier.height(8.dp))
+                GhostButton(
+                    "Ekspor CSV QA Sintetis",
+                    onClick = { PilotExportShare.shareQaSessionCsv(context, record) }
                 )
             }
         }
@@ -2248,10 +2364,13 @@ private fun ProcessingScreen() {
 private fun ResultOverviewScreen(
     result: AssessmentResult?,
     pilotSession: PilotSessionRecord?,
+    syncConfigured: Boolean,
+    pilotSessionSynced: Boolean,
     onBack: () -> Unit,
     onMap: () -> Unit,
     onDetail: (String) -> Unit,
-    onPilotData: () -> Unit
+    onPilotData: () -> Unit,
+    onSyncNow: () -> Unit
 ) {
     if (result == null) {
         Column(
@@ -2357,33 +2476,58 @@ private fun ResultOverviewScreen(
         pilotSession?.let { session ->
             Spacer(Modifier.height(14.dp))
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Gold.copy(alpha = .35f)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (pilotSessionSynced) Success.copy(alpha = .08f) else Color.White
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    if (pilotSessionSynced) Success.copy(alpha = .30f) else Gold.copy(alpha = .35f)
+                ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(Modifier.padding(15.dp)) {
                     Text(
                         "DATA PILOT SESI INI",
-                        color = Gold,
+                        color = if (pilotSessionSynced) Success else Gold,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.1.sp
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "${session.responses.size} respons item sudah tersimpan lokal.",
+                        when {
+                            !syncConfigured -> "${session.responses.size} respons tersimpan lokal"
+                            pilotSessionSynced -> "Data pilot berhasil tersinkron"
+                            else -> "${session.responses.size} respons aman dan menunggu sinkronisasi"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "Untuk penelitian, ekspor CSV sesi ini lalu kirimkan file tersebut kepada peneliti. Satu sesi 47 item menghasilkan sekitar 47 baris respons; itu tetap dihitung sebagai 1 peserta/sesi, bukan 47 responden.",
+                        when {
+                            !syncConfigured ->
+                                "Auto-sync belum dikonfigurasi pada build ini. Gunakan ekspor CSV sesi sebagai salinan data penelitian."
+                            pilotSessionSynced ->
+                                "Sesi pseudonim ini sudah ditandai terkirim ke penyimpanan penelitian. Ekspor CSV tetap tersedia sebagai backup manual."
+                            else ->
+                                "Sesi disimpan lokal terlebih dahulu dan akan dikirim otomatis ketika jaringan tersedia. Kamu juga dapat meminta sinkronisasi sekarang."
+                        },
                         color = Muted,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
                     )
-                    Spacer(Modifier.height(12.dp))
-                    PrimaryButton(
+
+                    if (syncConfigured && !pilotSessionSynced) {
+                        Spacer(Modifier.height(12.dp))
+                        PrimaryButton(
+                            "Sinkronkan Sekarang",
+                            onClick = onSyncNow
+                        )
+                    }
+
+                    Spacer(Modifier.height(if (syncConfigured && !pilotSessionSynced) 8.dp else 12.dp))
+                    GhostButton(
                         "Ekspor CSV Sesi Ini",
                         onClick = { PilotExportShare.shareSessionCsv(context, session) }
                     )
@@ -3522,6 +3666,9 @@ private fun GrowthCompletedPractice(
 @Composable
 private fun HistoryScreen(
     history: List<AssessmentResult>,
+    pilotSessions: List<PilotSessionRecord>,
+    syncedPilotIds: Set<String>,
+    syncConfigured: Boolean,
     onBack: () -> Unit,
     onStartAssessment: () -> Unit,
     onResult: (Long) -> Unit,
@@ -3591,6 +3738,20 @@ private fun HistoryScreen(
                 }.sortedByDescending { it.second }
                     .take(2)
                     .joinToString(" & ") { (id, _) -> DimensionLabels[id] ?: id }
+                val pilotSession = pilotSessions.firstOrNull {
+                    it.result.completedAt == assessment.completedAt
+                }
+                val pilotStatusText = when {
+                    pilotSession == null -> "PRIBADI"
+                    !syncConfigured -> "PILOT · LOKAL"
+                    pilotSession.sessionId in syncedPilotIds -> "PILOT · TERSINKRON"
+                    else -> "PILOT · MENUNGGU"
+                }
+                val pilotStatusColor = when {
+                    pilotSession == null -> Muted.copy(alpha = .72f)
+                    pilotSession.sessionId in syncedPilotIds -> Success
+                    else -> Gold
+                }
 
                 Row(
                     Modifier
@@ -3618,6 +3779,14 @@ private fun HistoryScreen(
                             if (topLabels.isBlank()) "Hasil pilot" else "Indeks tertinggi: $topLabels",
                             color = Muted,
                             fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            pilotStatusText,
+                            color = pilotStatusColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = .7.sp
                         )
                     }
                     Icon(Icons.Default.ChevronRight, null, tint = Muted.copy(alpha = .3f))
@@ -3882,6 +4051,8 @@ private fun SettingsScreen(
     history: List<AssessmentResult>,
     recommendationsEnabled: Boolean,
     onRecommendationsEnabledChange: (Boolean) -> Unit,
+    developerQaEnabled: Boolean,
+    onDeveloperQaEnabledChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onAbout: () -> Unit,
     onPilotData: () -> Unit,
@@ -3892,6 +4063,7 @@ private fun SettingsScreen(
     var reminder by remember { mutableStateOf(prefs.getBoolean("reminder_weekly", false)) }
     var reminderPermissionDenied by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var versionTapCount by rememberSaveable { mutableIntStateOf(0) }
     val versionLabel = remember(context.packageName) { appVersionLabel(context) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -4007,7 +4179,32 @@ private fun SettingsScreen(
         Spacer(Modifier.height(24.dp))
         SectionLabel("Tentang")
         SettingsRow("Tentang POTENTIA", onClick = onAbout)
-        SettingsRow("Versi", info = "$versionLabel · Research Pilot RC", onClick = {})
+        SettingsRow(
+            "Versi",
+            info = "$versionLabel · Research Pilot RC" + if (developerQaEnabled) " · QA aktif" else "",
+            onClick = {
+                if (BuildConfig.DEBUG && !developerQaEnabled) {
+                    versionTapCount += 1
+                    if (versionTapCount >= 7) {
+                        onDeveloperQaEnabledChange(true)
+                        versionTapCount = 0
+                    }
+                }
+            }
+        )
+        if (BuildConfig.DEBUG && developerQaEnabled) {
+            SettingsRow(
+                "Developer QA",
+                info = "Aktif · buka Data pilot penelitian",
+                onClick = onPilotData
+            )
+            TextButton(
+                onClick = { onDeveloperQaEnabledChange(false) },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("Nonaktifkan Developer QA", color = Muted, fontSize = 12.sp)
+            }
+        }
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -4065,7 +4262,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         )
         ArticleSection(
             "Privasi data",
-            "Riwayat hasil asesmen disimpan lokal di perangkat. Dalam mode pribadi, jawaban per-item tidak dipertahankan setelah scoring selesai. Jika kamu secara eksplisit memilih ikut pilot penelitian, respons per-item (termasuk jawaban bebas) disimpan lokal dengan ID partisipan acak/pseudonim untuk ekspor manual. Tidak ada unggah otomatis ke server. Model Kreatif tetap berjalan on-device."
+            "Riwayat hasil asesmen disimpan lokal di perangkat. Dalam mode pribadi, jawaban per-item tidak dipertahankan setelah scoring selesai. Jika kamu secara eksplisit memilih ikut pilot penelitian, respons per-item (termasuk jawaban bebas) disimpan lokal dengan ID partisipan acak/pseudonim. Pada build yang dikonfigurasi untuk penelitian, sesi pilot juga dapat disinkronkan otomatis melalui HTTPS; ekspor manual tetap tersedia sebagai backup. Model Kreatif tetap berjalan on-device."
         )
 
         Card(

@@ -49,3 +49,6 @@ Release APK/AAB tetap perlu signing key milik developer; jangan commit keystore 
 - Export pilot bisa berisi free text; file sementara dibuat di cache dan export lama dibersihkan sebelum export baru.
 
 Lihat `QA_RELEASE_CANDIDATE.md` untuk regression checklist dan known limitations.
+
+## Developer QA (RC1.4)
+Debug builds include a hidden smoke-test mode so the 47-item sync/export pipeline can be verified without manually completing the assessment. Tap `Pengaturan → Versi` seven times, then open `Privasi & Data Pilot`. QA data is routed to separate `QA_*` sheets and must never be included in pilot analysis. See `QA_FAST_TEST_GUIDE.md`.

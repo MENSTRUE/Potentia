@@ -13,7 +13,16 @@ object PilotSyncClient {
         data class PermanentFailure(val message: String) : Result
     }
 
-    fun upload(record: PilotSessionRecord): Result {
+    fun upload(record: PilotSessionRecord): Result =
+        uploadInternal(record = record, dataKind = "pilot")
+
+    fun uploadQa(record: PilotSessionRecord): Result =
+        uploadInternal(record = record, dataKind = "qa_test")
+
+    private fun uploadInternal(
+        record: PilotSessionRecord,
+        dataKind: String
+    ): Result {
         if (!PilotSyncConfig.isConfigured) {
             return Result.PermanentFailure("Endpoint sinkronisasi pilot belum dikonfigurasi.")
         }
@@ -35,7 +44,8 @@ object PilotSyncClient {
         return try {
             val payload = PilotSyncPayload.create(
                 record = record,
-                uploadToken = PilotSyncConfig.uploadToken
+                uploadToken = PilotSyncConfig.uploadToken,
+                dataKind = dataKind
             )
 
             connection.outputStream.use { output ->

@@ -48,6 +48,20 @@ object PilotExportShare {
         )
     }
 
+    fun shareQaSessionCsv(
+        context: Context,
+        session: PilotSessionRecord
+    ) {
+        shareFile(
+            context = context,
+            filename = "potentia_qa_smoke_test_${sessionFileToken(session.sessionId)}_${timestamp()}.csv",
+            mimeType = "text/csv",
+            payload = PilotResearchStorage.exportLongCsv(listOf(session)),
+            subject = "POTENTIA QA smoke-test CSV",
+            chooserTitle = "Bagikan CSV uji POTENTIA"
+        )
+    }
+
 
     /**
      * Export ringkasan hasil asesmen yang tersimpan di riwayat lokal.

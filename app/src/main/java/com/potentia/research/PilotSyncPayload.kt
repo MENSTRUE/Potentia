@@ -7,11 +7,13 @@ object PilotSyncPayload {
 
     fun create(
         record: PilotSessionRecord,
-        uploadToken: String
+        uploadToken: String,
+        dataKind: String = "pilot"
     ): String = JSONObject().apply {
         put("uploadToken", uploadToken)
         put("schemaVersion", "potentia-sync-v1")
         put("source", "android")
+        put("dataKind", dataKind)
         put("session", sessionJson(record))
     }.toString()
 
